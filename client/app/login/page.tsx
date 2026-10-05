@@ -1,10 +1,21 @@
+"use client";
+
+import { useState } from "react";
 import Link from "next/link";
-import { ArrowRight, LockKeyhole, Video } from "lucide-react";
+import {
+  ArrowRight,
+  Eye,
+  EyeOff,
+  LockKeyhole,
+  Video,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 
 export default function LoginPage() {
+  const [showPassword, setShowPassword] = useState(false);
+
   return (
     <main className="min-h-screen bg-[#09090b] text-white">
       <div className="grid min-h-screen lg:grid-cols-[1.05fr_0.95fr]">
@@ -47,8 +58,8 @@ export default function LoginPage() {
               </h1>
 
               <p className="mt-5 max-w-md text-sm leading-7 text-zinc-500">
-                Meet, communicate, and collaborate from one focused
-                workspace built for modern teams.
+                Meet, communicate, and collaborate from one focused workspace
+                built for modern teams.
               </p>
 
               <div className="mt-8 flex flex-wrap gap-2">
@@ -85,6 +96,7 @@ export default function LoginPage() {
 
                 <div>
                   <p className="text-[15px] font-semibold">Nash</p>
+
                   <p className="text-[9px] uppercase tracking-[0.2em] text-zinc-500">
                     Connect · Collaborate
                   </p>
@@ -134,14 +146,32 @@ export default function LoginPage() {
                   </button>
                 </div>
 
-                <Input
-                  id="password"
-                  name="password"
-                  type="password"
-                  placeholder="Enter your password"
-                  autoComplete="current-password"
-                  required
-                />
+                <div className="relative">
+                  <Input
+                    id="password"
+                    name="password"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Enter your password"
+                    autoComplete="current-password"
+                    required
+                    className="pr-11"
+                  />
+
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((current) => !current)}
+                    aria-label={
+                      showPassword ? "Hide password" : "Show password"
+                    }
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-600 transition hover:text-zinc-300"
+                  >
+                    {showPassword ? (
+                      <EyeOff size={17} />
+                    ) : (
+                      <Eye size={17} />
+                    )}
+                  </button>
+                </div>
               </div>
 
               <Button
@@ -165,7 +195,7 @@ export default function LoginPage() {
             </div>
 
             <p className="text-center text-sm text-zinc-500">
-              Don't have an account?{" "}
+              Don&apos;t have an account?{" "}
               <Link
                 href="/signup"
                 className="font-medium text-zinc-200 transition hover:text-white"
@@ -175,7 +205,7 @@ export default function LoginPage() {
             </p>
 
             <p className="mt-8 text-center text-[10px] leading-5 text-zinc-700">
-              By continuing, you agree to Nash's terms of service and
+              By continuing, you agree to Nash&apos;s terms of service and
               privacy policy.
             </p>
           </div>
