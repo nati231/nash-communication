@@ -1,5 +1,14 @@
+"use client";
+
+import { useState } from "react";
 import Link from "next/link";
-import { ArrowRight, CheckCircle2, Sparkles } from "lucide-react";
+import {
+  ArrowRight,
+  CheckCircle2,
+  Eye,
+  EyeOff,
+  Sparkles,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -11,6 +20,9 @@ const benefits = [
 ];
 
 export default function SignupPage() {
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
   return (
     <main className="min-h-screen bg-[#09090b] text-white">
       <div className="grid min-h-screen lg:grid-cols-[1.05fr_0.95fr]">
@@ -23,6 +35,7 @@ export default function SignupPage() {
           <div className="absolute -bottom-40 right-0 h-96 w-96 rounded-full bg-indigo-600/[0.08] blur-3xl" />
 
           <div className="relative flex w-full flex-col justify-between p-10 xl:p-14">
+            {/* Logo */}
             <Link href="/" className="flex w-fit items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-sm font-bold text-black shadow-[0_0_35px_rgba(255,255,255,0.08)]">
                 N
@@ -39,6 +52,7 @@ export default function SignupPage() {
               </div>
             </Link>
 
+            {/* Main message */}
             <div className="max-w-xl">
               <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-2xl border border-violet-400/15 bg-violet-500/[0.08] text-violet-300">
                 <Sparkles size={21} strokeWidth={1.7} />
@@ -51,8 +65,8 @@ export default function SignupPage() {
               </h1>
 
               <p className="mt-5 max-w-md text-sm leading-7 text-zinc-500">
-                Create your Nash workspace and bring meetings,
-                conversations, files, and ideas together.
+                Create your Nash workspace and bring meetings, conversations,
+                files, and ideas together.
               </p>
 
               <div className="mt-8 space-y-4">
@@ -73,6 +87,7 @@ export default function SignupPage() {
               </div>
             </div>
 
+            {/* Footer */}
             <p className="text-[11px] text-zinc-700">
               © 2026 Nash. Built for better communication.
             </p>
@@ -134,29 +149,71 @@ export default function SignupPage() {
                 required
               />
 
-              <Input
-                id="password"
-                name="password"
-                type="password"
-                label="Password"
-                placeholder="Create a strong password"
-                autoComplete="new-password"
-                required
-              />
+              {/* Password */}
+              <div>
+                <Input
+                  id="password"
+                  name="password"
+                  type={showPassword ? "text" : "password"}
+                  label="Password"
+                  placeholder="Create a strong password"
+                  autoComplete="new-password"
+                  required
+                  className="pr-11"
+                />
 
-              <Input
-                id="confirmPassword"
-                name="confirmPassword"
-                type="password"
-                label="Confirm password"
-                placeholder="Repeat your password"
-                autoComplete="new-password"
-                required
-              />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((current) => !current)}
+                  aria-label={
+                    showPassword ? "Hide password" : "Show password"
+                  }
+                  className="relative float-right -mt-8 mr-3 text-zinc-600 transition hover:text-zinc-300"
+                >
+                  {showPassword ? (
+                    <EyeOff size={17} />
+                  ) : (
+                    <Eye size={17} />
+                  )}
+                </button>
+              </div>
+
+              {/* Confirm password */}
+              <div>
+                <Input
+                  id="confirmPassword"
+                  name="confirmPassword"
+                  type={showConfirmPassword ? "text" : "password"}
+                  label="Confirm password"
+                  placeholder="Repeat your password"
+                  autoComplete="new-password"
+                  required
+                  className="pr-11"
+                />
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setShowConfirmPassword((current) => !current)
+                  }
+                  aria-label={
+                    showConfirmPassword
+                      ? "Hide confirm password"
+                      : "Show confirm password"
+                  }
+                  className="relative float-right -mt-8 mr-3 text-zinc-600 transition hover:text-zinc-300"
+                >
+                  {showConfirmPassword ? (
+                    <EyeOff size={17} />
+                  ) : (
+                    <Eye size={17} />
+                  )}
+                </button>
+              </div>
 
               <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-3.5 py-3">
                 <p className="text-[11px] leading-5 text-zinc-600">
-                  Your password should contain at least 8 characters. We'll
+                  Your password should contain at least 8 characters. We&apos;ll
                   add stronger validation when authentication is connected.
                 </p>
               </div>
@@ -182,7 +239,7 @@ export default function SignupPage() {
             </p>
 
             <p className="mt-8 text-center text-[10px] leading-5 text-zinc-700">
-              By creating an account, you agree to Nash's terms of service
+              By creating an account, you agree to Nash&apos;s terms of service
               and privacy policy.
             </p>
           </div>
