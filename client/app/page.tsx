@@ -7,6 +7,7 @@ import {
   Video,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
+import { Button } from "@/components/ui/Button";
 
 const upcomingMeetings = [
   {
@@ -41,6 +42,7 @@ export default function Home() {
       <div className="mx-auto w-full max-w-[1440px] px-5 py-7 sm:px-7 lg:px-10">
         <section className="relative overflow-hidden rounded-3xl border border-white/[0.08] bg-[#101012]">
           <div className="absolute -right-24 -top-32 h-80 w-80 rounded-full bg-violet-600/10 blur-3xl" />
+
           <div className="absolute -bottom-40 left-1/3 h-80 w-80 rounded-full bg-indigo-600/[0.06] blur-3xl" />
 
           <div className="relative flex flex-col justify-between gap-8 p-7 sm:p-9 lg:flex-row lg:items-center lg:p-10">
@@ -60,19 +62,22 @@ export default function Home() {
               </p>
 
               <div className="mt-7 flex flex-wrap gap-3">
-                <button className="group flex h-11 items-center gap-2 rounded-xl bg-white px-4 text-sm font-semibold text-black shadow-[0_8px_30px_rgba(255,255,255,0.08)] transition hover:bg-zinc-200">
+                <Button variant="primary" className="group font-semibold">
                   <Plus size={17} />
-                  New meeting
+
+                  <span>New meeting</span>
+
                   <ArrowUpRight
                     size={14}
                     className="transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
                   />
-                </button>
+                </Button>
 
-                <button className="flex h-11 items-center gap-2 rounded-xl border border-white/[0.09] bg-white/[0.025] px-4 text-sm font-medium text-zinc-300 transition hover:bg-white/[0.06] hover:text-white">
+                <Button variant="secondary">
                   <Video size={17} />
-                  Join meeting
-                </button>
+
+                  <span>Join meeting</span>
+                </Button>
               </div>
             </div>
 
@@ -140,9 +145,7 @@ export default function Home() {
                       {meeting.time}
                     </span>
 
-                    <span>
-                      {meeting.participants} participants
-                    </span>
+                    <span>{meeting.participants} participants</span>
                   </div>
 
                   <div className="mt-5 flex items-center justify-between border-t border-white/[0.06] pt-4">
@@ -170,6 +173,7 @@ export default function Home() {
 
               <div>
                 <p className="text-[11px] text-zinc-600">Today</p>
+
                 <p className="text-sm font-semibold text-zinc-200">
                   3 meetings
                 </p>
@@ -184,7 +188,10 @@ export default function Home() {
               </div>
 
               <div>
-                <p className="text-[11px] text-zinc-600">Time in meetings</p>
+                <p className="text-[11px] text-zinc-600">
+                  Time in meetings
+                </p>
+
                 <p className="text-sm font-semibold text-zinc-200">
                   2h 15m
                 </p>
@@ -200,6 +207,7 @@ export default function Home() {
 
               <div>
                 <p className="text-[11px] text-zinc-600">Workspace</p>
+
                 <p className="text-sm font-semibold text-zinc-200">
                   12 members
                 </p>
