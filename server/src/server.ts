@@ -4,11 +4,15 @@ import express from "express";
 import { createServer } from "node:http";
 import { Server } from "socket.io";
 
+import { prisma } from "./config/prisma.js";
+import authRoutes from "./routes/auth.routes.js";
+
 const app = express();
 const httpServer = createServer(app);
 
-const PORT = Number(process.env.PORT) || 5000;
-const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:3000";
+const PORT = Number(process.env["PORT"]) || 5000;
+const CLIENT_URL =
+  process.env["CLIENT_URL"] || "http://localhost:3000";
 
 app.use(
   cors({
@@ -19,18 +23,24 @@ app.use(
 
 app.use(express.json());
 
+// API routes
+app.use("/api/auth", authRoutes);
+
+// Health check
+app.get("/health", (_req, res) => {
+  res.json({
+    success: true,
+    message: "Nash server is running",
+    database: "configured",
+  });
+});
+
+// Socket.IO
 const io = new Server(httpServer, {
   cors: {
     origin: CLIENT_URL,
     credentials: true,
   },
-});
-
-app.get("/health", (_req, res) => {
-  res.json({
-    success: true,
-    message: "Nash server is running",
-  });
 });
 
 io.on("connection", (socket) => {
@@ -41,6 +51,7 @@ io.on("connection", (socket) => {
   });
 });
 
+// Start server
 httpServer.listen(PORT, () => {
   console.log(`Nash server running on http://localhost:${PORT}`);
 });
