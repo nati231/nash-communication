@@ -1,0 +1,122 @@
+[
+  {
+    "id": "table.Meeting",
+    "label": "Create table \"Meeting\"",
+    "summary": "Creates table \"Meeting\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "table",
+        "name": "Meeting"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"Meeting\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"Meeting\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"Meeting\"",
+        "sql": "CREATE TABLE \"public\".\"Meeting\" (\n  \"createdAt\" timestamptz DEFAULT (now()) NOT NULL,\n  \"hostId\" text NOT NULL,\n  \"id\" text NOT NULL,\n  \"title\" text NOT NULL,\n  \"updatedAt\" timestamptz DEFAULT (now()) NOT NULL,\n  PRIMARY KEY (\"id\")\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"Meeting\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"Meeting\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.Meeting.Meeting_hostId_idx_05205577",
+    "label": "Create index \"Meeting_hostId_idx_05205577\" on \"Meeting\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "Meeting_hostId_idx_05205577",
+        "table": "Meeting"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"Meeting_hostId_idx_05205577\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"Meeting_hostId_idx_05205577\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"Meeting_hostId_idx_05205577\"",
+        "sql": "CREATE INDEX \"Meeting_hostId_idx_05205577\" ON \"public\".\"Meeting\" (\"hostId\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"Meeting_hostId_idx_05205577\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"Meeting_hostId_idx_05205577\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.Meeting.Meeting_hostId_fkey",
+    "label": "Add foreign key \"Meeting_hostId_fkey\" on \"Meeting\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "Meeting_hostId_fkey",
+        "table": "Meeting"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"Meeting_hostId_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "Meeting_hostId_fkey",
+          "public",
+          "\"public\".\"Meeting\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"Meeting_hostId_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"Meeting\"\nADD CONSTRAINT \"Meeting_hostId_fkey\"\nFOREIGN KEY (\"hostId\")\nREFERENCES \"public\".\"User\" (\"id\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"Meeting_hostId_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "Meeting_hostId_fkey",
+          "public",
+          "\"public\".\"Meeting\""
+        ]
+      }
+    ]
+  }
+]

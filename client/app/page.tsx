@@ -1,3 +1,5 @@
+"use client";
+
 import {
   ArrowUpRight,
   CalendarDays,
@@ -8,6 +10,10 @@ import {
 } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/Button";
+
+const SERVER_URL =
+  process.env.NEXT_PUBLIC_API_URL ||
+  "http://localhost:5000";
 
 const upcomingMeetings = [
   {
@@ -36,7 +42,93 @@ const upcomingMeetings = [
   },
 ];
 
+interface StoredUser {
+  id: string;
+  name?: string;
+  email?: string;
+}
+
+interface CreateMeetingResponse {
+  success?: boolean;
+  message?: string;
+  meeting?: {
+    id: string;
+    title?: string;
+    hostId?: string;
+  };
+}
+
 export default function Home() {
+  const handleNewMeeting = async () => {
+    try {
+      const token = localStorage.getItem("nash_token");
+      const storedUser = localStorage.getItem("nash_user");
+
+      if (!token) {
+        window.location.href = "/login";
+        return;
+      }
+
+      if (!storedUser) {
+        window.location.href = "/login";
+        return;
+      }
+
+      const user: StoredUser = JSON.parse(storedUser);
+
+      if (!user.id) {
+        alert("Your user session is invalid. Please log in again.");
+        window.location.href = "/login";
+        return;
+      }
+
+      const response = await fetch(
+        `${SERVER_URL}/api/meetings`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            title: "Nash Meeting",
+            hostId: user.id,
+          }),
+        },
+      );
+
+      const data =
+        (await response.json()) as CreateMeetingResponse;
+
+      if (!response.ok || !data.meeting?.id) {
+        console.error("Create meeting failed:", data);
+
+        alert(
+          data.message ||
+            "Failed to create meeting. Please try again.",
+        );
+
+        return;
+      }
+
+      window.location.href =
+        `/meeting/${data.meeting.id}`;
+    } catch (error) {
+      console.error(
+        "Create meeting error:",
+        error,
+      );
+
+      alert(
+        "Unable to create meeting. Please make sure the server is running.",
+      );
+    }
+  };
+
+  const handleJoinMeeting = () => {
+    window.location.href = "/meeting/join";
+  };
+
   return (
     <AppShell>
       <div className="mx-auto w-full max-w-[1440px] px-5 py-7 sm:px-7 lg:px-10">
@@ -62,7 +154,11 @@ export default function Home() {
               </p>
 
               <div className="mt-7 flex flex-wrap gap-3">
-                <Button variant="primary" className="group font-semibold">
+                <Button
+                  variant="primary"
+                  className="group font-semibold"
+                  onClick={handleNewMeeting}
+                >
                   <Plus size={17} />
 
                   <span>New meeting</span>
@@ -73,7 +169,10 @@ export default function Home() {
                   />
                 </Button>
 
-                <Button variant="secondary">
+                <Button
+                  variant="secondary"
+                  onClick={handleJoinMeeting}
+                >
                   <Video size={17} />
 
                   <span>Join meeting</span>
@@ -127,7 +226,10 @@ export default function Home() {
                 <div className="relative">
                   <div className="flex items-start justify-between">
                     <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/[0.07] bg-white/[0.035]">
-                      <Video size={17} className="text-violet-300" />
+                      <Video
+                        size={17}
+                        className="text-violet-300"
+                      />
                     </div>
 
                     <span className="rounded-full border border-white/[0.07] px-2.5 py-1 text-[10px] font-medium text-zinc-500">
@@ -145,7 +247,9 @@ export default function Home() {
                       {meeting.time}
                     </span>
 
-                    <span>{meeting.participants} participants</span>
+                    <span>
+                      {meeting.participants} participants
+                    </span>
                   </div>
 
                   <div className="mt-5 flex items-center justify-between border-t border-white/[0.06] pt-4">
@@ -172,7 +276,9 @@ export default function Home() {
               </div>
 
               <div>
-                <p className="text-[11px] text-zinc-600">Today</p>
+                <p className="text-[11px] text-zinc-600">
+                  Today
+                </p>
 
                 <p className="text-sm font-semibold text-zinc-200">
                   3 meetings
@@ -206,7 +312,9 @@ export default function Home() {
               </div>
 
               <div>
-                <p className="text-[11px] text-zinc-600">Workspace</p>
+                <p className="text-[11px] text-zinc-600">
+                  Workspace
+                </p>
 
                 <p className="text-sm font-semibold text-zinc-200">
                   12 members

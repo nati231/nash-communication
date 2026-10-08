@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   ArrowRight,
   Eye,
@@ -13,12 +14,88 @@ import {
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 
+const API_URL =
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+
 export default function LoginPage() {
+  const router = useRouter();
+
   const [showPassword, setShowPassword] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  async function handleLogin(
+    event: React.FormEvent<HTMLFormElement>,
+  ) {
+    event.preventDefault();
+
+    setError("");
+    setLoading(true);
+
+    try {
+      const response = await fetch(
+        `${API_URL}/api/auth/login`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            email: email.trim(),
+            password,
+          }),
+        },
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.message || "Login failed",
+        );
+      }
+
+      if (!data.token) {
+        throw new Error(
+          "Login succeeded but no token was returned",
+        );
+      }
+
+      // Remove previous account
+      localStorage.removeItem("nash_token");
+      localStorage.removeItem("nash_user");
+
+      // Save current account
+      localStorage.setItem(
+        "nash_token",
+        data.token,
+      );
+
+      if (data.user) {
+        localStorage.setItem(
+          "nash_user",
+          JSON.stringify(data.user),
+        );
+      }
+
+      router.push("/");
+    } catch (error) {
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Login failed",
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
     <main className="min-h-screen bg-[#09090b] text-white">
       <div className="grid min-h-screen lg:grid-cols-[1.05fr_0.95fr]">
+
         {/* Brand panel */}
         <section className="relative hidden overflow-hidden border-r border-white/[0.06] lg:flex">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_25%_25%,rgba(124,58,237,0.18),transparent_35%),radial-gradient(circle_at_75%_75%,rgba(79,70,229,0.12),transparent_30%)]" />
@@ -28,8 +105,11 @@ export default function LoginPage() {
           <div className="absolute -bottom-32 right-0 h-96 w-96 rounded-full bg-indigo-600/[0.08] blur-3xl" />
 
           <div className="relative flex w-full flex-col justify-between p-10 xl:p-14">
-            {/* Logo */}
-            <Link href="/" className="flex w-fit items-center gap-3">
+
+            <Link
+              href="/"
+              className="flex w-fit items-center gap-3"
+            >
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-sm font-bold text-black shadow-[0_0_35px_rgba(255,255,255,0.08)]">
                 N
               </div>
@@ -45,10 +125,12 @@ export default function LoginPage() {
               </div>
             </Link>
 
-            {/* Main message */}
             <div className="max-w-xl">
               <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-2xl border border-violet-400/15 bg-violet-500/[0.08] text-violet-300">
-                <Video size={21} strokeWidth={1.7} />
+                <Video
+                  size={21}
+                  strokeWidth={1.7}
+                />
               </div>
 
               <h1 className="max-w-lg text-4xl font-semibold leading-[1.08] tracking-[-0.04em] text-white xl:text-5xl">
@@ -58,8 +140,9 @@ export default function LoginPage() {
               </h1>
 
               <p className="mt-5 max-w-md text-sm leading-7 text-zinc-500">
-                Meet, communicate, and collaborate from one focused workspace
-                built for modern teams.
+                Meet, communicate, and collaborate from
+                one focused workspace built for modern
+                teams.
               </p>
 
               <div className="mt-8 flex flex-wrap gap-2">
@@ -77,7 +160,6 @@ export default function LoginPage() {
               </div>
             </div>
 
-            {/* Footer */}
             <p className="text-[11px] text-zinc-700">
               © 2026 Nash. Built for better communication.
             </p>
@@ -87,15 +169,21 @@ export default function LoginPage() {
         {/* Login panel */}
         <section className="flex min-h-screen items-center justify-center px-5 py-10 sm:px-8">
           <div className="w-full max-w-[420px]">
+
             {/* Mobile logo */}
             <div className="mb-12 lg:hidden">
-              <Link href="/" className="inline-flex items-center gap-3">
+              <Link
+                href="/"
+                className="inline-flex items-center gap-3"
+              >
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-sm font-bold text-black">
                   N
                 </div>
 
                 <div>
-                  <p className="text-[15px] font-semibold">Nash</p>
+                  <p className="text-[15px] font-semibold">
+                    Nash
+                  </p>
 
                   <p className="text-[9px] uppercase tracking-[0.2em] text-zinc-500">
                     Connect · Collaborate
@@ -106,7 +194,10 @@ export default function LoginPage() {
 
             <div className="mb-8">
               <div className="mb-5 flex h-10 w-10 items-center justify-center rounded-xl border border-white/[0.07] bg-white/[0.025] text-zinc-400">
-                <LockKeyhole size={17} strokeWidth={1.7} />
+                <LockKeyhole
+                  size={17}
+                  strokeWidth={1.7}
+                />
               </div>
 
               <h2 className="text-3xl font-semibold tracking-[-0.035em]">
@@ -114,11 +205,15 @@ export default function LoginPage() {
               </h2>
 
               <p className="mt-2 text-sm leading-6 text-zinc-500">
-                Sign in to continue to your Nash workspace.
+                Sign in to continue to your Nash
+                workspace.
               </p>
             </div>
 
-            <form className="space-y-5">
+            <form
+              onSubmit={handleLogin}
+              className="space-y-5"
+            >
               <Input
                 id="email"
                 name="email"
@@ -127,6 +222,10 @@ export default function LoginPage() {
                 placeholder="you@example.com"
                 autoComplete="email"
                 required
+                value={email}
+                onChange={(event) =>
+                  setEmail(event.target.value)
+                }
               />
 
               <div>
@@ -150,18 +249,32 @@ export default function LoginPage() {
                   <Input
                     id="password"
                     name="password"
-                    type={showPassword ? "text" : "password"}
+                    type={
+                      showPassword
+                        ? "text"
+                        : "password"
+                    }
                     placeholder="Enter your password"
                     autoComplete="current-password"
                     required
                     className="pr-11"
+                    value={password}
+                    onChange={(event) =>
+                      setPassword(event.target.value)
+                    }
                   />
 
                   <button
                     type="button"
-                    onClick={() => setShowPassword((current) => !current)}
+                    onClick={() =>
+                      setShowPassword(
+                        (current) => !current,
+                      )
+                    }
                     aria-label={
-                      showPassword ? "Hide password" : "Show password"
+                      showPassword
+                        ? "Hide password"
+                        : "Show password"
                     }
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-600 transition hover:text-zinc-300"
                   >
@@ -174,13 +287,25 @@ export default function LoginPage() {
                 </div>
               </div>
 
+              {error && (
+                <p className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+                  {error}
+                </p>
+              )}
+
               <Button
                 type="submit"
                 variant="primary"
+                disabled={loading}
                 className="h-12 w-full justify-center rounded-xl"
               >
-                Sign in
-                <ArrowRight size={16} />
+                {loading
+                  ? "Signing in..."
+                  : "Sign in"}
+
+                {!loading && (
+                  <ArrowRight size={16} />
+                )}
               </Button>
             </form>
 
@@ -205,8 +330,8 @@ export default function LoginPage() {
             </p>
 
             <p className="mt-8 text-center text-[10px] leading-5 text-zinc-700">
-              By continuing, you agree to Nash&apos;s terms of service and
-              privacy policy.
+              By continuing, you agree to Nash&apos;s
+              terms of service and privacy policy.
             </p>
           </div>
         </section>

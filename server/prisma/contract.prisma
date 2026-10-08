@@ -2,7 +2,7 @@
 
 namespace public {
   model User {
-    id           String           @id @default(uuid())
+    id           String            @id @default(uuid())
     name         String
     email        String
     passwordHash String
@@ -10,6 +10,57 @@ namespace public {
     createdAt    TimestamptzString @default(now())
     updatedAt    TimestamptzString @default(now())
 
+    conversations ConversationMember[]
+    memberships   ConversationMember[]
+    messages      Message[]
+    meetings      Meeting[]
+
     @@unique([email])
+  }
+
+  model Conversation {
+    id        String            @id @default(uuid())
+    createdAt TimestamptzString @default(now())
+    updatedAt TimestamptzString @default(now())
+
+    memberships ConversationMember[]
+    messages    Message[]
+  }
+
+  model ConversationMember {
+    id             String            @id @default(uuid())
+    conversationId String
+    userId         String
+    joinedAt       TimestamptzString @default(now())
+
+    conversation Conversation @relation(fields: [conversationId], references: [id])
+    user         User         @relation(fields: [userId], references: [id])
+
+    @@unique([conversationId, userId])
+  }
+
+  model Message {
+    id             String            @id @default(uuid())
+    conversationId String
+    senderId       String
+    content        String
+    createdAt      TimestamptzString @default(now())
+
+    conversation Conversation @relation(fields: [conversationId], references: [id])
+    sender       User         @relation(fields: [senderId], references: [id])
+
+    @@index([conversationId, createdAt])
+  }
+
+  model Meeting {
+    id        String            @id @default(uuid())
+    title     String
+    hostId    String
+    createdAt TimestamptzString @default(now())
+    updatedAt TimestamptzString @default(now())
+
+    host User @relation(fields: [hostId], references: [id])
+
+    @@index([hostId])
   }
 }

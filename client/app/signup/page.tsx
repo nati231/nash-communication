@@ -13,6 +13,9 @@ import {
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 
+const API_URL =
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+
 const benefits = [
   "HD video meetings with your team",
   "Real-time chat and collaboration",
@@ -23,10 +26,73 @@ export default function SignupPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  async function handleSignup(
+    event: React.FormEvent<HTMLFormElement>,
+  ) {
+    event.preventDefault();
+    setError("");
+
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters.");
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setError("Passwords do not match.");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const response = await fetch(
+        `${API_URL}/api/auth/register`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            name: name.trim(),
+            email: email.trim(),
+            password,
+          }),
+        },
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.message || "Failed to create account",
+        );
+      }
+
+      // Registration succeeds.
+      // Go to login so the user can authenticate.
+      window.location.href = "/login";
+    } catch (error) {
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Failed to create account",
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <main className="min-h-screen bg-[#09090b] text-white">
       <div className="grid min-h-screen lg:grid-cols-[1.05fr_0.95fr]">
-        {/* Brand panel */}
         <section className="relative hidden overflow-hidden border-r border-white/[0.06] lg:flex">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_25%_20%,rgba(124,58,237,0.18),transparent_35%),radial-gradient(circle_at_80%_80%,rgba(79,70,229,0.12),transparent_32%)]" />
 
@@ -35,7 +101,6 @@ export default function SignupPage() {
           <div className="absolute -bottom-40 right-0 h-96 w-96 rounded-full bg-indigo-600/[0.08] blur-3xl" />
 
           <div className="relative flex w-full flex-col justify-between p-10 xl:p-14">
-            {/* Logo */}
             <Link href="/" className="flex w-fit items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-sm font-bold text-black shadow-[0_0_35px_rgba(255,255,255,0.08)]">
                 N
@@ -52,7 +117,6 @@ export default function SignupPage() {
               </div>
             </Link>
 
-            {/* Main message */}
             <div className="max-w-xl">
               <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-2xl border border-violet-400/15 bg-violet-500/[0.08] text-violet-300">
                 <Sparkles size={21} strokeWidth={1.7} />
@@ -65,8 +129,8 @@ export default function SignupPage() {
               </h1>
 
               <p className="mt-5 max-w-md text-sm leading-7 text-zinc-500">
-                Create your Nash workspace and bring meetings, conversations,
-                files, and ideas together.
+                Create your Nash workspace and bring meetings,
+                conversations, files, and ideas together.
               </p>
 
               <div className="mt-8 space-y-4">
@@ -87,17 +151,14 @@ export default function SignupPage() {
               </div>
             </div>
 
-            {/* Footer */}
             <p className="text-[11px] text-zinc-700">
               © 2026 Nash. Built for better communication.
             </p>
           </div>
         </section>
 
-        {/* Signup panel */}
         <section className="flex min-h-screen items-center justify-center px-5 py-10 sm:px-8">
           <div className="w-full max-w-[420px]">
-            {/* Mobile logo */}
             <div className="mb-10 lg:hidden">
               <Link href="/" className="inline-flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-sm font-bold text-black">
@@ -128,7 +189,10 @@ export default function SignupPage() {
               </p>
             </div>
 
-            <form className="space-y-4">
+            <form
+              onSubmit={handleSignup}
+              className="space-y-4"
+            >
               <Input
                 id="name"
                 name="name"
@@ -137,6 +201,8 @@ export default function SignupPage() {
                 placeholder="Natnael Bekele"
                 autoComplete="name"
                 required
+                value={name}
+                onChange={(e) => setName(e.target.value)}
               />
 
               <Input
@@ -147,9 +213,10 @@ export default function SignupPage() {
                 placeholder="you@example.com"
                 autoComplete="email"
                 required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
               />
 
-              {/* Password */}
               <div>
                 <Input
                   id="password"
@@ -160,13 +227,16 @@ export default function SignupPage() {
                   autoComplete="new-password"
                   required
                   className="pr-11"
+                  value={password}
+                  onChange={(e) =>
+                    setPassword(e.target.value)
+                  }
                 />
 
                 <button
                   type="button"
-                  onClick={() => setShowPassword((current) => !current)}
-                  aria-label={
-                    showPassword ? "Hide password" : "Show password"
+                  onClick={() =>
+                    setShowPassword((current) => !current)
                   }
                   className="relative float-right -mt-8 mr-3 text-zinc-600 transition hover:text-zinc-300"
                 >
@@ -178,28 +248,32 @@ export default function SignupPage() {
                 </button>
               </div>
 
-              {/* Confirm password */}
               <div>
                 <Input
                   id="confirmPassword"
                   name="confirmPassword"
-                  type={showConfirmPassword ? "text" : "password"}
+                  type={
+                    showConfirmPassword
+                      ? "text"
+                      : "password"
+                  }
                   label="Confirm password"
                   placeholder="Repeat your password"
                   autoComplete="new-password"
                   required
                   className="pr-11"
+                  value={confirmPassword}
+                  onChange={(e) =>
+                    setConfirmPassword(e.target.value)
+                  }
                 />
 
                 <button
                   type="button"
                   onClick={() =>
-                    setShowConfirmPassword((current) => !current)
-                  }
-                  aria-label={
-                    showConfirmPassword
-                      ? "Hide confirm password"
-                      : "Show confirm password"
+                    setShowConfirmPassword(
+                      (current) => !current,
+                    )
                   }
                   className="relative float-right -mt-8 mr-3 text-zinc-600 transition hover:text-zinc-300"
                 >
@@ -213,18 +287,28 @@ export default function SignupPage() {
 
               <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-3.5 py-3">
                 <p className="text-[11px] leading-5 text-zinc-600">
-                  Your password should contain at least 8 characters. We&apos;ll
-                  add stronger validation when authentication is connected.
+                  Your password should contain at least 8
+                  characters.
                 </p>
               </div>
+
+              {error && (
+                <p className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+                  {error}
+                </p>
+              )}
 
               <Button
                 type="submit"
                 variant="primary"
+                disabled={loading}
                 className="h-12 w-full justify-center rounded-xl"
               >
-                Create account
-                <ArrowRight size={16} />
+                {loading
+                  ? "Creating account..."
+                  : "Create account"}
+
+                {!loading && <ArrowRight size={16} />}
               </Button>
             </form>
 
@@ -239,8 +323,8 @@ export default function SignupPage() {
             </p>
 
             <p className="mt-8 text-center text-[10px] leading-5 text-zinc-700">
-              By creating an account, you agree to Nash&apos;s terms of service
-              and privacy policy.
+              By creating an account, you agree to Nash&apos;s
+              terms of service and privacy policy.
             </p>
           </div>
         </section>
