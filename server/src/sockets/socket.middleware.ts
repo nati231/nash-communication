@@ -1,49 +1,58 @@
-import jwt from "jsonwebtoken";
-import type { ExtendedError } from "socket.io";
-
+import jwt, { type JwtPayload } from "jsonwebtoken";
+import type { Socket, ExtendedError } from "socket.io";
 import type { SocketUser } from "./socket.types.js";
-import type { Socket } from "socket.io";
 
-const JWT_SECRET = process.env["JWT_SECRET"] ?? "";
+function getJwtSecret(): string {
+  const secret = process.env["JWT_SECRET"];
 
-if (!JWT_SECRET) {
-  throw new Error("JWT_SECRET is not defined");
+  if (!secret) {
+    throw new Error("JWT_SECRET is not defined");
+  }
+
+  return secret;
 }
 
 export function authenticateSocket(
   socket: Socket,
   next: (err?: ExtendedError) => void,
-) {
+): void {
   try {
-    const token =
-      typeof socket.handshake.auth?.token === "string"
-        ? socket.handshake.auth.token
-        : undefined;
+    const token = socket.handshake.auth?.token;
 
-    if (!token) {
-      return next(new Error("Authentication token is required"));
+    if (typeof token !== "string" || !token) {
+      next(new Error("Authentication token is required"));
+      return;
     }
 
-    const decoded = jwt.verify(token, JWT_SECRET);
+    const decoded = jwt.verify(token, getJwtSecret());
+
+    if (typeof decoded === "string") {
+      next(new Error("Invalid token payload"));
+      return;
+    }
+
+    const payload = decoded as JwtPayload & {
+      userId?: unknown;
+      email?: unknown;
+    };
 
     if (
-      typeof decoded !== "object" ||
-      decoded === null ||
-      typeof decoded.userId !== "string" ||
-      typeof decoded.email !== "string"
+      typeof payload.userId !== "string" ||
+      typeof payload.email !== "string"
     ) {
-      return next(new Error("Invalid token payload"));
+      next(new Error("Invalid token payload"));
+      return;
     }
 
     const user: SocketUser = {
-      userId: decoded.userId,
-      email: decoded.email,
+      userId: payload.userId,
+      email: payload.email,
     };
 
     socket.data.user = user;
-
     next();
-  } catch {
+  } catch (error) {
+    console.error("Socket authentication failed:", error);
     next(new Error("Invalid or expired token"));
   }
 }
