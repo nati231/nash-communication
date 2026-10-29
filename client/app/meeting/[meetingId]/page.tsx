@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { io, type Socket } from "socket.io-client";
 
 type Participant = {
@@ -56,6 +56,17 @@ function getToken() {
     localStorage.getItem("authToken") ||
     ""
   );
+}
+
+function clearSavedLogin() {
+  if (typeof window === "undefined") return;
+  [
+    "nash_token",
+    "nash_user",
+    "token",
+    "accessToken",
+    "authToken",
+  ].forEach((key) => localStorage.removeItem(key));
 }
 
 function getName() {
@@ -171,6 +182,7 @@ function RemoteVideo({ stream }: { stream: MediaStream | undefined }) {
 }
 
 export default function MeetingPage() {
+  const router = useRouter();
   const params = useParams<{ meetingId: string }>();
   const meetingId = String(params?.meetingId || "");
 
@@ -359,6 +371,19 @@ export default function MeetingPage() {
 
     let cancelled = false;
     let socket: Socket | null = null;
+    let redirectTimer: ReturnType<typeof setTimeout> | null = null;
+
+    // Clears the saved login and sends the person to the login page.
+    const redirectToLogin = (message: string) => {
+      clearSavedLogin();
+      setConnected(false);
+      setStatus("Signing you out…");
+      setError(message);
+      if (redirectTimer) clearTimeout(redirectTimer);
+      redirectTimer = setTimeout(() => {
+        router.replace("/login");
+      }, 1500);
+    };
 
     const onConnect = () => {
       if (cancelled) return;
@@ -482,14 +507,21 @@ export default function MeetingPage() {
 
     const onConnectError = (e: Error) => {
       if (cancelled) return;
+
+      // The server says the saved login is no good: send the person to log in.
+      if (
+        e.message === "Invalid or expired token" ||
+        e.message === "Authentication token is required" ||
+        e.message === "Invalid token payload"
+      ) {
+        socket?.disconnect();
+        redirectToLogin("Your session has ended. Taking you to the login page…");
+        return;
+      }
+
       setConnected(false);
       setStatus("Connection failed");
-      setError(
-        e.message === "Invalid or expired token" ||
-          e.message === "Authentication token is required"
-          ? `The server rejected your login (${e.message}). Please sign out and sign in again.`
-          : e.message
-      );
+      setError(e.message);
     };
 
     const onDisconnect = () => {
@@ -508,8 +540,7 @@ export default function MeetingPage() {
 
       const token = getToken();
       if (!token) {
-        setStatus("Please sign in first.");
-        setError("No login token found in localStorage.");
+        redirectToLogin("Please sign in to join this meeting. Taking you to the login page…");
         return;
       }
 
@@ -549,6 +580,7 @@ export default function MeetingPage() {
     return () => {
       cancelled = true;
       joinedRef.current = false;
+      if (redirectTimer) clearTimeout(redirectTimer);
 
       if (socket) {
         socket.off("connect", onConnect);
@@ -570,6 +602,7 @@ export default function MeetingPage() {
     };
   }, [
     meetingId,
+    router,
     closePeer,
     closeAllPeers,
     createPeer,
