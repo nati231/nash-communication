@@ -1,5 +1,5 @@
-
 import type { Server, Socket } from "socket.io";
+import { registerMeetingChatHandlers } from "./meeting-chat-handlers.js";
 
 import { prisma } from "../config/prisma.js";
 import { authenticateSocket } from "./socket.middleware.js";
@@ -30,12 +30,6 @@ interface SocketUser {
   name?: string;
 }
 
-interface MeetingParticipant {
-  id: string;
-  name: string;
-  email: string;
-}
-
 interface AckResponse {
   success: boolean;
   error?: string;
@@ -46,8 +40,6 @@ interface AckResponse {
   members?: unknown[];
   messages?: unknown[];
   userId?: string;
-  meetingId?: string;
-  participants?: MeetingParticipant[];
   [key: string]: unknown;
 }
 
@@ -105,7 +97,7 @@ export function registerSocketHandlers(io: Server): void {
   io.on("connection", (socket: Socket) => {
     const user = socket.data.user as SocketUser | undefined;
 
-    if (!user?.userId) {
+    if (!user?.userId || !user.email) {
       socket.disconnect(true);
       return;
     }
@@ -139,132 +131,14 @@ export function registerSocketHandlers(io: Server): void {
     // MEETINGS
     // =====================================================
 
-    socket.on(
-      "meeting:join",
-      (
-        meetingId: string,
-        participant: {
-          name?: string;
-          email?: string;
-        } = {},
-        callback?: Ack,
-      ) => {
-        try {
-          if (
-            typeof meetingId !== "string" ||
-            !meetingId.trim()
-          ) {
-            return respondError(
-              callback,
-              "Meeting ID is required.",
-            );
-          }
-
-          const cleanMeetingId = meetingId.trim();
-          const roomName = `meeting:${cleanMeetingId}`;
-
-          const meetingParticipant = {
-            name:
-              typeof participant?.name === "string" &&
-              participant.name.trim()
-                ? participant.name.trim()
-                : user.name || user.email,
-            email:
-              typeof participant?.email === "string" &&
-              participant.email.trim()
-                ? participant.email.trim()
-                : user.email,
-          };
-
-          socket.data.meetingParticipant = meetingParticipant;
-
-          void socket.join(roomName);
-
-          const room = io.sockets.adapter.rooms.get(roomName);
-          const participants: MeetingParticipant[] = [];
-
-          if (room) {
-            for (const socketId of room) {
-              const participantSocket =
-                io.sockets.sockets.get(socketId);
-
-              if (!participantSocket) continue;
-
-              const socketUser = participantSocket.data
-                .user as SocketUser | undefined;
-
-              if (!socketUser) continue;
-
-              const profile = participantSocket.data
-                .meetingParticipant as
-                | { name?: string; email?: string }
-                | undefined;
-
-              participants.push({
-                id: String(socketUser.userId),
-                name:
-                  profile?.name ||
-                  socketUser.name ||
-                  socketUser.email,
-                email: profile?.email || socketUser.email,
-              });
-            }
-          }
-
-          callback?.({
-            success: true,
-            meetingId: cleanMeetingId,
-            userId,
-            participants,
-          });
-
-          socket.to(roomName).emit("meeting:user-joined", {
-            participant: {
-              id: userId,
-              name: meetingParticipant.name,
-              email: meetingParticipant.email,
-            },
-          });
-        } catch (error) {
-          console.error("Meeting join error:", error);
-          respondError(callback, "Failed to join meeting.");
-        }
-      },
-    );
-
-    socket.on(
-      "meeting:leave",
-      (meetingId: string, callback?: Ack) => {
-        try {
-          if (
-            typeof meetingId !== "string" ||
-            !meetingId.trim()
-          ) {
-            return respondError(
-              callback,
-              "Meeting ID is required.",
-            );
-          }
-
-          const cleanMeetingId = meetingId.trim();
-          const roomName = `meeting:${cleanMeetingId}`;
-
-          void socket.leave(roomName);
-
-          socket.to(roomName).emit("meeting:user-left", {
-            userId,
-          });
-
-          callback?.({
-            success: true,
-            meetingId: cleanMeetingId,
-          });
-        } catch (error) {
-          console.error("Meeting leave error:", error);
-          respondError(callback, "Failed to leave meeting.");
-        }
-      },
-    );
+    // meeting:join, meeting:leave, meeting:chat:send and the WebRTC
+    // offer/answer/ice relay are all handled in meeting-chat-handlers.ts.
+    // Do not register meeting:join or meeting:leave anywhere else.
+    registerMeetingChatHandlers(io, socket, {
+      userId,
+      email: user.email,
+      name: user.name,
+    });
 
     // =====================================================
     // CONVERSATION LIST
@@ -339,17 +213,19 @@ export function registerSocketHandlers(io: Server): void {
           ).trim();
 
           if (!targetUserId) {
-            return respondError(
+            respondError(
               callback,
               "The other user's ID is required.",
             );
+            return;
           }
 
           if (targetUserId === userId) {
-            return respondError(
+            respondError(
               callback,
               "You cannot start a conversation with yourself.",
             );
+            return;
           }
 
           const targetUser = await prisma.orm.public.User.first({
@@ -357,7 +233,8 @@ export function registerSocketHandlers(io: Server): void {
           });
 
           if (!targetUser) {
-            return respondError(callback, "User not found.");
+            respondError(callback, "User not found.");
+            return;
           }
 
           let conversation = await findDirectConversation(
@@ -445,10 +322,11 @@ export function registerSocketHandlers(io: Server): void {
           const conversationId = getConversationId(payload);
 
           if (!conversationId) {
-            return respondError(
+            respondError(
               callback,
               "Conversation ID is required.",
             );
+            return;
           }
 
           const isMember = await isConversationMember(
@@ -457,10 +335,11 @@ export function registerSocketHandlers(io: Server): void {
           );
 
           if (!isMember) {
-            return respondError(
+            respondError(
               callback,
               "You are not a member of this conversation.",
             );
+            return;
           }
 
           await socket.join(conversationId);
@@ -499,10 +378,11 @@ export function registerSocketHandlers(io: Server): void {
           ).trim();
 
           if (!conversationId || !targetUserId) {
-            return respondError(
+            respondError(
               callback,
               "Conversation ID and user ID are required.",
             );
+            return;
           }
 
           const requesterIsMember = await isConversationMember(
@@ -511,10 +391,11 @@ export function registerSocketHandlers(io: Server): void {
           );
 
           if (!requesterIsMember) {
-            return respondError(
+            respondError(
               callback,
               "You are not a member of this conversation.",
             );
+            return;
           }
 
           const targetUser = await prisma.orm.public.User.first({
@@ -522,7 +403,8 @@ export function registerSocketHandlers(io: Server): void {
           });
 
           if (!targetUser) {
-            return respondError(callback, "User not found.");
+            respondError(callback, "User not found.");
+            return;
           }
 
           const alreadyMember = await isConversationMember(
@@ -593,10 +475,11 @@ export function registerSocketHandlers(io: Server): void {
           const conversationId = getConversationId(payload);
 
           if (!conversationId) {
-            return respondError(
+            respondError(
               callback,
               "Conversation ID is required.",
             );
+            return;
           }
 
           const isMember = await isConversationMember(
@@ -605,10 +488,11 @@ export function registerSocketHandlers(io: Server): void {
           );
 
           if (!isMember) {
-            return respondError(
+            respondError(
               callback,
               "You are not a member of this conversation.",
             );
+            return;
           }
 
           const members =
@@ -646,10 +530,11 @@ export function registerSocketHandlers(io: Server): void {
           const conversationId = getConversationId(payload);
 
           if (!conversationId) {
-            return respondError(
+            respondError(
               callback,
               "Conversation ID is required.",
             );
+            return;
           }
 
           const isMember = await isConversationMember(
@@ -658,10 +543,11 @@ export function registerSocketHandlers(io: Server): void {
           );
 
           if (!isMember) {
-            return respondError(
+            respondError(
               callback,
               "You are not a member of this conversation.",
             );
+            return;
           }
 
           await socket.join(conversationId);
@@ -669,7 +555,6 @@ export function registerSocketHandlers(io: Server): void {
           const messages =
             await getConversationMessages(conversationId);
 
-          // Add each sender's actual profile name to the history.
           const enrichedMessages = await Promise.all(
             messages.map(async (message) => {
               const sender = await prisma.orm.public.User.first({
@@ -699,7 +584,7 @@ export function registerSocketHandlers(io: Server): void {
     );
 
     // =====================================================
-    // SEND MESSAGE
+    // SEND CONVERSATION MESSAGE
     // =====================================================
 
     socket.on(
@@ -718,17 +603,19 @@ export function registerSocketHandlers(io: Server): void {
           ).trim();
 
           if (!conversationId || !content) {
-            return respondError(
+            respondError(
               callback,
               "Conversation ID and message content are required.",
             );
+            return;
           }
 
           if (content.length > 5000) {
-            return respondError(
+            respondError(
               callback,
               "Messages cannot exceed 5000 characters.",
             );
+            return;
           }
 
           const isMember = await isConversationMember(
@@ -737,13 +624,13 @@ export function registerSocketHandlers(io: Server): void {
           );
 
           if (!isMember) {
-            return respondError(
+            respondError(
               callback,
               "You are not allowed to send messages in this conversation.",
             );
+            return;
           }
 
-          // Read the sender's name from the authenticated user's DB record.
           const sender = await prisma.orm.public.User.first({
             id: userId,
           });
@@ -754,7 +641,6 @@ export function registerSocketHandlers(io: Server): void {
             content,
           });
 
-          // Include senderName for the receiver's browser.
           const messageWithSenderName = {
             ...message,
             senderName: sender?.name || sender?.email || "User",

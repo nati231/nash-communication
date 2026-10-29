@@ -126,7 +126,7 @@ export default function Home() {
   };
 
   const handleJoinMeeting = () => {
-    window.location.href = "/meeting/join";
+    window.location.href = "/meeting";
   };
 
   return (

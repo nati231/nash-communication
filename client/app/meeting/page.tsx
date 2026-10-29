@@ -1,271 +1,79 @@
 ﻿"use client";
 
-import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
-import { io, Socket } from "socket.io-client";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 
-const SERVER_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  "http://localhost:5000";
+// Accepts a full meeting link or a bare meeting ID and returns just the ID.
+function extractMeetingId(input: string): string {
+  const text = input.trim();
+  if (!text) return "";
 
-function getAuthToken(): string | null {
-  if (typeof window === "undefined") {
-    return null;
-  }
+  const marker = "/meeting/";
+  const index = text.indexOf(marker);
+  const raw = index >= 0 ? text.slice(index + marker.length) : text;
 
-  const keys = [
-    "token",
-    "accessToken",
-    "authToken",
-    "nash_token",
-  ];
-
-  for (const key of keys) {
-    const token = window.localStorage.getItem(key);
-
-    if (token) {
-      return token;
-    }
-  }
-
-  return null;
+  return raw.split(/[/?#\s]/)[0] || "";
 }
 
-export default function MeetingRoomPage() {
-  const params = useParams();
+export default function JoinMeetingPage() {
+  const router = useRouter();
+  const [value, setValue] = useState("");
+  const [error, setError] = useState("");
 
-  const meetingId =
-    typeof params.meetingId === "string"
-      ? params.meetingId
-      : "";
+  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
 
-  const [socket, setSocket] =
-    useState<Socket | null>(null);
-
-  const [joined, setJoined] =
-    useState(false);
-
-  const [status, setStatus] =
-    useState("Ready to join");
-
-  const [participants, setParticipants] =
-    useState<string[]>([]);
-
-  useEffect(() => {
-    return () => {
-      socket?.disconnect();
-    };
-  }, [socket]);
-
-  function joinMeeting() {
-    if (joined || socket) {
-      return;
-    }
+    const meetingId = extractMeetingId(value);
 
     if (!meetingId) {
-      setStatus("Meeting ID is missing");
+      setError("Enter a meeting ID or paste a meeting link.");
       return;
     }
 
-    const token = getAuthToken();
-
-    if (!token) {
-      setStatus(
-        "You are not logged in. Please log in first.",
-      );
-      return;
-    }
-
-    setStatus("Connecting...");
-
-    const newSocket = io(
-      SERVER_URL,
-      {
-        auth: {
-          token,
-        },
-        transports: ["websocket"],
-      },
-    );
-
-    newSocket.on(
-      "connect",
-      () => {
-        setStatus("Connected");
-
-        newSocket.emit(
-          "meeting:join",
-          meetingId,
-          (
-            response: {
-              success: boolean;
-              message?: string;
-              participantIds?: string[];
-            },
-          ) => {
-            if (!response?.success) {
-              setStatus(
-                response?.message ||
-                  "Failed to join meeting",
-              );
-
-              newSocket.disconnect();
-              setSocket(null);
-
-              return;
-            }
-
-            setJoined(true);
-
-            setParticipants(
-              response.participantIds || [],
-            );
-
-            setStatus("Joined meeting");
-          },
-        );
-      },
-    );
-
-    newSocket.on(
-      "connect_error",
-      (error) => {
-        console.error(
-          "Socket connection error:",
-          error,
-        );
-
-        setStatus(
-          error.message ||
-            "Socket authentication failed",
-        );
-
-        newSocket.disconnect();
-        setSocket(null);
-      },
-    );
-
-    newSocket.on(
-      "meeting:user-joined",
-      ({
-        userId,
-      }: {
-        userId: string;
-      }) => {
-        setParticipants(
-          (current) => {
-            if (
-              current.includes(userId)
-            ) {
-              return current;
-            }
-
-            return [
-              ...current,
-              userId,
-            ];
-          },
-        );
-      },
-    );
-
-    newSocket.on(
-      "meeting:user-left",
-      ({
-        userId,
-      }: {
-        userId: string;
-      }) => {
-        setParticipants(
-          (current) =>
-            current.filter(
-              (id) =>
-                id !== userId,
-            ),
-        );
-      },
-    );
-
-    setSocket(newSocket);
-  }
-
-  function leaveMeeting() {
-    if (!socket) {
-      setJoined(false);
-      setParticipants([]);
-      setStatus("Left meeting");
-      return;
-    }
-
-    socket.emit(
-      "meeting:leave",
-      meetingId,
-      () => {
-        socket.disconnect();
-        setSocket(null);
-        setJoined(false);
-        setParticipants([]);
-        setStatus("Left meeting");
-      },
-    );
-  }
+    setError("");
+    router.push(`/meeting/${encodeURIComponent(meetingId)}`);
+  };
 
   return (
-    <main
-      style={{
-        padding: "40px",
-      }}
-    >
-      <h1>Meeting Room</h1>
-
-      <p>Meeting ID:</p>
-
-      <code>
-        {meetingId || "Unknown"}
-      </code>
-
-      <p>
-        Status: {status}
-      </p>
-
-      {!joined ? (
-        <button
-          onClick={joinMeeting}
-          disabled={!meetingId}
-        >
-          Join Meeting
-        </button>
-      ) : (
-        <button
-          onClick={leaveMeeting}
-        >
-          Leave Meeting
-        </button>
-      )}
-
-      <section
-        style={{
-          marginTop: "30px",
-        }}
+    <main className="flex min-h-screen items-center justify-center bg-slate-950 p-4 text-white">
+      <form
+        onSubmit={handleSubmit}
+        className="w-full max-w-md rounded-2xl bg-slate-900 p-6"
       >
-        <h2>Participants</h2>
+        <h1 className="text-2xl font-bold">Join a meeting</h1>
+        <p className="mt-1 text-sm text-slate-400">
+          Paste the meeting link or enter the meeting ID.
+        </p>
 
-        {participants.length === 0 ? (
-          <p>
-            No participants yet.
-          </p>
-        ) : (
-          <ul>
-            {participants.map(
-              (userId) => (
-                <li key={userId}>
-                  {userId}
-                </li>
-              ),
-            )}
-          </ul>
-        )}
-      </section>
+        <input
+          value={value}
+          onChange={(e) => {
+            setValue(e.target.value);
+            if (error) setError("");
+          }}
+          placeholder="Meeting link or ID"
+          autoFocus
+          className="mt-5 w-full rounded-lg bg-slate-800 px-3 py-2 text-sm outline-none"
+        />
+
+        {error && <p className="mt-2 text-sm text-red-300">{error}</p>}
+
+        <div className="mt-5 flex gap-2">
+          <button
+            type="submit"
+            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium"
+          >
+            Join meeting
+          </button>
+          <button
+            type="button"
+            onClick={() => router.push("/")}
+            className="rounded-lg bg-slate-800 px-4 py-2 text-sm"
+          >
+            Back
+          </button>
+        </div>
+      </form>
     </main>
   );
 }
