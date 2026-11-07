@@ -21,18 +21,18 @@ Build the visual foundation of Nash before implementing real-time functionality.
 
 ### Tasks
 
-- [ ] Initialize Next.js
-- [ ] Configure TypeScript
-- [ ] Configure Tailwind CSS
-- [ ] Add Lucide React
-- [ ] Create application layout
-- [ ] Create navigation/sidebar
-- [ ] Create dashboard
-- [ ] Create meeting cards
+- [x] Initialize Next.js
+- [x] Configure TypeScript
+- [x] Configure Tailwind CSS
+- [x] Add Lucide React
+- [x] Create application layout
+- [x] Create navigation/sidebar
+- [x] Create dashboard
+- [x] Create meeting cards
 - [ ] Create user profile UI
 - [ ] Create responsive layout
 - [ ] Add dark/light theme
-- [ ] Create reusable UI components
+- [x] Create reusable UI components
 
 ---
 
@@ -45,14 +45,17 @@ Allow users to securely create accounts and authenticate.
 ### Tasks
 
 - [ ] Design user authentication flow
-- [ ] Create registration page
-- [ ] Create login page
+- [x] Create registration page
+- [x] Create login page
 - [ ] Create logout functionality
 - [ ] Hash passwords
-- [ ] Create authentication middleware
+- [x] Create authentication middleware
 - [ ] Protect private routes
 - [ ] Create user profile
 - [ ] Test authentication
+
+Notes: the meeting and chat pages already redirect to the login page when the
+saved token is missing or rejected. Other private routes are not covered yet.
 
 ---
 
@@ -64,11 +67,11 @@ Create persistent application data.
 
 ### Tasks
 
-- [ ] Set up PostgreSQL
-- [ ] Configure Prisma
+- [x] Set up PostgreSQL
+- [x] Configure Prisma
 - [ ] Design database schema
-- [ ] Create User model
-- [ ] Create Meeting model
+- [x] Create User model
+- [x] Create Meeting model
 - [ ] Create MeetingParticipant model
 - [ ] Create File model
 - [ ] Run migrations
@@ -84,16 +87,16 @@ Create the backend foundation.
 
 ### Tasks
 
-- [ ] Initialize Node.js server
-- [ ] Configure Express
-- [ ] Configure TypeScript
-- [ ] Create API structure
-- [ ] Add environment configuration
+- [x] Initialize Node.js server
+- [x] Configure Express
+- [x] Configure TypeScript
+- [x] Create API structure
+- [x] Add environment configuration
 - [ ] Add request validation
 - [ ] Add error handling
-- [ ] Create user endpoints
-- [ ] Create meeting endpoints
-- [ ] Connect backend to PostgreSQL
+- [x] Create user endpoints
+- [x] Create meeting endpoints
+- [x] Connect backend to PostgreSQL
 
 ---
 
@@ -105,14 +108,14 @@ Introduce Socket.IO.
 
 ### Tasks
 
-- [ ] Configure Socket.IO server
-- [ ] Connect frontend Socket.IO client
+- [x] Configure Socket.IO server
+- [x] Connect frontend Socket.IO client
 - [ ] Understand WebSockets
-- [ ] Create meeting rooms
-- [ ] Handle join events
-- [ ] Handle leave events
-- [ ] Handle participant events
-- [ ] Handle disconnect events
+- [x] Create meeting rooms
+- [x] Handle join events
+- [x] Handle leave events
+- [x] Handle participant events
+- [x] Handle disconnect events
 
 ---
 
@@ -125,17 +128,21 @@ Implement real-time audio and video.
 ### Tasks
 
 - [ ] Learn MediaStream
-- [ ] Request camera permission
-- [ ] Request microphone permission
-- [ ] Create RTCPeerConnection
+- [x] Request camera permission
+- [x] Request microphone permission
+- [x] Create RTCPeerConnection
 - [ ] Understand SDP
-- [ ] Implement offers
-- [ ] Implement answers
-- [ ] Exchange ICE candidates
-- [ ] Build one-to-one video call
-- [ ] Add remote video
-- [ ] Add local video
-- [ ] Handle connection errors
+- [x] Implement offers
+- [x] Implement answers
+- [x] Exchange ICE candidates
+- [x] Build one-to-one video call
+- [x] Add remote video
+- [x] Add local video
+- [x] Handle connection errors
+
+Notes: calls use free STUN servers. An optional TURN relay can be switched on
+with the NEXT_PUBLIC_TURN_* settings; it has not been tested with a real TURN
+server yet.
 
 ---
 
@@ -148,13 +155,16 @@ Allow multiple participants in the same meeting.
 ### Tasks
 
 - [ ] Design participant architecture
-- [ ] Create participant state
-- [ ] Create video grid
-- [ ] Handle participants joining
-- [ ] Handle participants leaving
-- [ ] Handle peer connections
-- [ ] Handle connection failures
+- [x] Create participant state
+- [x] Create video grid
+- [x] Handle participants joining
+- [x] Handle participants leaving
+- [x] Handle peer connections
+- [x] Handle connection failures
 - [ ] Improve meeting UI
+
+Notes: tested with two participants. Meetings with three or more people have
+not been tested yet.
 
 ---
 
@@ -167,13 +177,16 @@ Allow users to share their screen.
 ### Tasks
 
 - [ ] Learn getDisplayMedia
-- [ ] Request screen capture
-- [ ] Add screen-sharing controls
-- [ ] Replace/add video track
-- [ ] Notify other participants
-- [ ] Stop screen sharing
-- [ ] Restore camera
-- [ ] Handle browser permissions
+- [x] Request screen capture
+- [x] Add screen-sharing controls
+- [x] Replace/add video track
+- [x] Notify other participants
+- [x] Stop screen sharing
+- [x] Restore camera
+- [x] Handle browser permissions
+
+Notes: a person who joins without a camera can watch a shared screen but cannot
+share their own, because their connections are receive-only for video.
 
 ---
 
@@ -185,11 +198,11 @@ Create real-time meeting chat.
 
 ### Tasks
 
-- [ ] Create chat interface
-- [ ] Create Socket.IO chat events
-- [ ] Send messages
-- [ ] Receive messages
-- [ ] Display timestamps
+- [x] Create chat interface
+- [x] Create Socket.IO chat events
+- [x] Send messages
+- [x] Receive messages
+- [x] Display timestamps
 - [ ] Display participants
 - [ ] Handle disconnected users
 - [ ] Improve chat UX
