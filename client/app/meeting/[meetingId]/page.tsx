@@ -9,6 +9,7 @@ type Participant = {
   userId: string;
   name: string;
   email?: string;
+  sharing?: boolean;
 };
 
 type ChatMessage = {
@@ -179,7 +180,14 @@ async function acquireMedia(
 }
 
 // One remote participant's video. Keeps its own element attached to its stream.
-function RemoteVideo({ stream }: { stream: MediaStream | undefined }) {
+// A shared screen is shown whole ("contain"); a camera fills the tile ("cover").
+function RemoteVideo({
+  stream,
+  fit,
+}: {
+  stream: MediaStream | undefined;
+  fit: "cover" | "contain";
+}) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
   useEffect(() => {
@@ -194,7 +202,9 @@ function RemoteVideo({ stream }: { stream: MediaStream | undefined }) {
       ref={videoRef}
       autoPlay
       playsInline
-      className="aspect-video w-full rounded-lg bg-black object-cover"
+      className={`aspect-video w-full rounded-lg bg-black ${
+        fit === "contain" ? "object-contain" : "object-cover"
+      }`}
     />
   );
 }
@@ -206,12 +216,15 @@ export default function MeetingPage() {
 
   const socketRef = useRef<Socket | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
+  const screenStreamRef = useRef<MediaStream | null>(null);
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const peersRef = useRef(new Map<string, RTCPeerConnection>());
   const remoteStreamsRef = useRef(new Map<string, MediaStream>());
   const pendingIceRef = useRef(new Map<string, RTCIceCandidateInit[]>());
   const participantsRef = useRef(new Map<string, Participant>());
   const joinedRef = useRef(false);
+  const sharingRef = useRef(false);
+  const shareStartingRef = useRef(false);
 
   const [connected, setConnected] = useState(false);
   const [joined, setJoined] = useState(false);
@@ -224,6 +237,7 @@ export default function MeetingPage() {
   const [sending, setSending] = useState(false);
   const [cameraOn, setCameraOn] = useState(false);
   const [micOn, setMicOn] = useState(false);
+  const [sharing, setSharing] = useState(false);
   const [error, setError] = useState("");
   const [status, setStatus] = useState("Connecting…");
 
@@ -286,15 +300,20 @@ export default function MeetingPage() {
       peersRef.current.set(id, peer);
 
       const local = localStreamRef.current;
+      const screenTrack = screenStreamRef.current?.getVideoTracks()[0];
 
-      // Send our tracks. For any kind we cannot send (no camera or mic),
-      // still ask to receive it so we can see and hear the other person.
+      // Send our tracks. While sharing, the screen is sent instead of the camera.
+      // For any kind we cannot send (no camera or mic), still ask to receive it
+      // so we can see and hear the other person.
       (["audio", "video"] as const).forEach((kind) => {
-        const tracks = local
-          ? kind === "audio"
-            ? local.getAudioTracks()
-            : local.getVideoTracks()
-          : [];
+        const tracks =
+          kind === "video" && screenTrack
+            ? [screenTrack]
+            : local
+              ? kind === "audio"
+                ? local.getAudioTracks()
+                : local.getVideoTracks()
+              : [];
 
         if (local && tracks.length) {
           tracks.forEach((track) => peer.addTrack(track, local));
@@ -378,6 +397,131 @@ export default function MeetingPage() {
     },
     [createPeer, meetingId]
   );
+
+  // Swaps the video we send on every active call (camera <-> screen).
+  // replaceTrack needs no new offer/answer, so the calls keep running.
+  const replaceOutgoingVideo = useCallback(
+    async (track: MediaStreamTrack) => {
+      for (const peer of peersRef.current.values()) {
+        const transceiver = peer
+          .getTransceivers()
+          .find(
+            (t) =>
+              t.receiver.track.kind === "video" &&
+              t.direction !== "recvonly"
+          );
+
+        if (!transceiver) continue;
+
+        try {
+          await transceiver.sender.replaceTrack(track);
+        } catch (e) {
+          console.warn("Could not swap the outgoing video", e);
+        }
+      }
+    },
+    []
+  );
+
+  const stopScreenShare = useCallback(
+    async (notify = true) => {
+      const screen = screenStreamRef.current;
+      if (!screen && !sharingRef.current) return;
+
+      screenStreamRef.current = null;
+      sharingRef.current = false;
+
+      screen?.getTracks().forEach((track) => {
+        track.onended = null;
+        track.stop();
+      });
+
+      const camera = localStreamRef.current?.getVideoTracks()[0];
+      if (camera) await replaceOutgoingVideo(camera);
+
+      setSharing(false);
+
+      if (notify) {
+        socketRef.current?.emit("meeting:screen-share", {
+          meetingId,
+          sharing: false,
+        });
+      }
+    },
+    [meetingId, replaceOutgoingVideo]
+  );
+
+  const startScreenShare = useCallback(async () => {
+    if (sharingRef.current || shareStartingRef.current) return;
+
+    if (!joinedRef.current) {
+      setError("Join the meeting before sharing your screen.");
+      return;
+    }
+
+    if (!navigator.mediaDevices?.getDisplayMedia) {
+      setError(
+        "This browser can't share your screen. Try Chrome or Edge on a computer."
+      );
+      return;
+    }
+
+    if (!localStreamRef.current?.getVideoTracks().length) {
+      setError(
+        "You joined without a camera, so screen sharing isn't available in this meeting. Connect a camera and reload the page to enable it."
+      );
+      return;
+    }
+
+    shareStartingRef.current = true;
+
+    try {
+      let stream: MediaStream;
+
+      try {
+        stream = await navigator.mediaDevices.getDisplayMedia({
+          video: true,
+          audio: false,
+        });
+      } catch (e) {
+        const name = e instanceof Error ? e.name : "";
+        setError(
+          name === "NotAllowedError"
+            ? "Screen sharing was cancelled or blocked. Click Share screen to try again."
+            : "Could not start screen sharing."
+        );
+        return;
+      }
+
+      const track = stream.getVideoTracks()[0];
+
+      // The person may have left the meeting while the picker was open.
+      if (!track || !joinedRef.current) {
+        stream.getTracks().forEach((t) => t.stop());
+        return;
+      }
+
+      screenStreamRef.current = stream;
+      sharingRef.current = true;
+
+      // The browser's own "Stop sharing" bar ends the track.
+      track.onended = () => {
+        void stopScreenShare();
+      };
+
+      await replaceOutgoingVideo(track);
+
+      setSharing(true);
+      setError("");
+
+      socketRef.current?.emit("meeting:screen-share", {
+        meetingId,
+        sharing: true,
+      });
+    } finally {
+      shareStartingRef.current = false;
+    }
+  }, [meetingId, replaceOutgoingVideo, stopScreenShare]);
 
   // Keep the local preview attached to the local stream.
   useEffect(() => {
@@ -469,6 +613,23 @@ export default function MeetingPage() {
       }
     };
 
+    const onScreenShare = (data: {
+      meetingId: string;
+      socketId: string;
+      sharing: boolean;
+    }) => {
+      if (data?.meetingId !== meetingId || !data.socketId) return;
+
+      const existing = participantsRef.current.get(data.socketId);
+      if (!existing) return;
+
+      participantsRef.current.set(data.socketId, {
+        ...existing,
+        sharing: Boolean(data.sharing),
+      });
+      refreshParticipants();
+    };
+
     const onOffer = async (data: Signal) => {
       if (data?.meetingId !== meetingId || !data.from || !data.offer) return;
       try {
@@ -550,6 +711,8 @@ export default function MeetingPage() {
       setJoined(false);
       joinedRef.current = false;
       setStatus("Disconnected. Trying to reconnect…");
+      // The server forgets a share when the socket drops, so end ours too.
+      void stopScreenShare(false);
       // Our socket id is gone, so every peer connection is stale.
       closeAllPeers();
     };
@@ -589,6 +752,7 @@ export default function MeetingPage() {
       socket.on("disconnect", onDisconnect);
       socket.on("meeting:participant-joined", onParticipantJoined);
       socket.on("meeting:participant-left", onParticipantLeft);
+      socket.on("meeting:screen-share", onScreenShare);
       socket.on("meeting:webrtc:offer", onOffer);
       socket.on("meeting:webrtc:answer", onAnswer);
       socket.on("meeting:webrtc:ice", onIce);
@@ -608,6 +772,7 @@ export default function MeetingPage() {
         socket.off("disconnect", onDisconnect);
         socket.off("meeting:participant-joined", onParticipantJoined);
         socket.off("meeting:participant-left", onParticipantLeft);
+        socket.off("meeting:screen-share", onScreenShare);
         socket.off("meeting:webrtc:offer", onOffer);
         socket.off("meeting:webrtc:answer", onAnswer);
         socket.off("meeting:webrtc:ice", onIce);
@@ -617,6 +782,15 @@ export default function MeetingPage() {
       }
 
       socketRef.current = null;
+
+      // Release the shared screen as well as the camera.
+      screenStreamRef.current?.getTracks().forEach((track) => {
+        track.onended = null;
+        track.stop();
+      });
+      screenStreamRef.current = null;
+      sharingRef.current = false;
+
       closeAllPeers();
       stopLocalMedia();
     };
@@ -630,6 +804,7 @@ export default function MeetingPage() {
     refreshParticipants,
     sendOffer,
     stopLocalMedia,
+    stopScreenShare,
   ]);
 
   const sendMessage = (event: React.FormEvent<HTMLFormElement>) => {
@@ -667,6 +842,15 @@ export default function MeetingPage() {
     }
     socketRef.current = null;
     joinedRef.current = false;
+
+    screenStreamRef.current?.getTracks().forEach((track) => {
+      track.onended = null;
+      track.stop();
+    });
+    screenStreamRef.current = null;
+    sharingRef.current = false;
+    setSharing(false);
+
     setJoined(false);
     setConnected(false);
     setStatus("You left the meeting.");
@@ -694,6 +878,11 @@ export default function MeetingPage() {
     });
     if (kind === "audio") setMicOn(next);
     else setCameraOn(next);
+  };
+
+  const toggleScreenShare = () => {
+    if (sharing) void stopScreenShare();
+    else void startScreenShare();
   };
 
   return (
@@ -732,14 +921,30 @@ export default function MeetingPage() {
                 className="aspect-video w-full rounded-lg bg-black object-cover"
               />
               <p className="mt-2 text-sm">
-                You {cameraOn ? "" : "(camera off)"}
+                You{" "}
+                {sharing
+                  ? "(sharing your screen)"
+                  : cameraOn
+                    ? ""
+                    : "(camera off)"}
               </p>
             </div>
 
             {participants.map((person) => (
-              <div key={person.socketId} className="rounded-xl bg-slate-900 p-3">
-                <RemoteVideo stream={remoteStreams[person.socketId]} />
-                <p className="mt-2 text-sm">{person.name || "Participant"}</p>
+              <div
+                key={person.socketId}
+                className={`rounded-xl bg-slate-900 p-3 ${
+                  person.sharing ? "sm:col-span-2" : ""
+                }`}
+              >
+                <RemoteVideo
+                  stream={remoteStreams[person.socketId]}
+                  fit={person.sharing ? "contain" : "cover"}
+                />
+                <p className="mt-2 text-sm">
+                  {person.name || "Participant"}
+                  {person.sharing ? " is sharing their screen" : ""}
+                </p>
               </div>
             ))}
           </div>
@@ -764,12 +969,27 @@ export default function MeetingPage() {
               {cameraOn ? "Turn camera off" : "Turn camera on"}
             </button>
             <button
+              onClick={toggleScreenShare}
+              disabled={!joined}
+              className={`rounded-lg px-4 py-2 disabled:opacity-50 ${
+                sharing ? "bg-emerald-700" : "bg-slate-800"
+              }`}
+            >
+              {sharing ? "Stop sharing" : "Share screen"}
+            </button>
+            <button
               onClick={leaveMeeting}
               className="rounded-lg bg-red-700 px-4 py-2"
             >
               Leave meeting
             </button>
           </div>
+
+          {sharing && (
+            <p className="mt-3 text-sm text-emerald-300">
+              You’re sharing your screen. Everyone in the meeting can see it.
+            </p>
+          )}
         </section>
 
         <aside className="flex min-h-[420px] flex-col rounded-xl bg-slate-900 p-4">
