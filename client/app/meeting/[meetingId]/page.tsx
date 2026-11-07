@@ -40,11 +40,29 @@ const API_URL = (
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"
 ).replace(/\/+$/, "");
 
+// Optional TURN relay, used when two networks cannot connect directly.
+// Set these three values in client/.env.local to turn it on.
+const TURN_URL = process.env.NEXT_PUBLIC_TURN_URL || "";
+const TURN_USERNAME = process.env.NEXT_PUBLIC_TURN_USERNAME || "";
+const TURN_CREDENTIAL = process.env.NEXT_PUBLIC_TURN_CREDENTIAL || "";
+
+const ICE_SERVERS: RTCIceServer[] = [
+  { urls: "stun:stun.l.google.com:19302" },
+  { urls: "stun:stun1.l.google.com:19302" },
+];
+
+if (TURN_URL && TURN_USERNAME && TURN_CREDENTIAL) {
+  ICE_SERVERS.push({
+    urls: TURN_URL.split(",")
+      .map((url) => url.trim())
+      .filter(Boolean),
+    username: TURN_USERNAME,
+    credential: TURN_CREDENTIAL,
+  });
+}
+
 const RTC_CONFIG: RTCConfiguration = {
-  iceServers: [
-    { urls: "stun:stun.l.google.com:19302" },
-    { urls: "stun:stun1.l.google.com:19302" },
-  ],
+  iceServers: ICE_SERVERS,
 };
 
 function getToken() {
@@ -311,7 +329,9 @@ export default function MeetingPage() {
       peer.onconnectionstatechange = () => {
         if (peer.connectionState === "failed") {
           setError(
-            "Video connection failed. Your network may need a TURN server."
+            TURN_URL
+              ? "Video connection failed, even through the relay server. Check your network and the TURN settings."
+              : "Video connection failed. These two networks may need a TURN relay server to connect."
           );
         }
       };
