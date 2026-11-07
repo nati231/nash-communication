@@ -1,4 +1,3 @@
-
 "use client";
 
 import {
@@ -6,23 +5,25 @@ import {
   useEffect,
   useRef,
   useState,
+  useSyncExternalStore,
   type FormEvent,
 } from "react";
+import { useRouter } from "next/navigation";
 import { io, type Socket } from "socket.io-client";
 
 const API_URL = (
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"
 ).replace(/\/+$/, "");
 
-interface ChatUser {
+type User = {
   id: string;
   userId?: string;
   name?: string;
   username?: string;
   email?: string;
-}
+};
 
-interface ChatMessage {
+type Message = {
   id?: string;
   _id?: string;
   conversationId: string;
@@ -37,136 +38,126 @@ interface ChatMessage {
   text?: string;
   createdAt?: string;
   timestamp?: string;
-}
+};
 
-interface Conversation {
+type Conversation = {
   id: string;
   conversationId?: string;
   name?: string;
   title?: string;
-  members?: ChatUser[];
-  users?: ChatUser[];
-  participants?: ChatUser[];
-  otherUser?: ChatUser;
-  recipient?: ChatUser;
-  lastMessage?: string;
-}
+  members?: User[];
+  users?: User[];
+  participants?: User[];
+  otherUser?: User;
+  recipient?: User;
+};
 
-interface SocketResponse {
-  success: boolean;
+type Ack = {
+  success?: boolean;
   error?: string;
-  message?: unknown;
-  messages?: ChatMessage[];
+  message?: Message | string;
+  messages?: Message[];
   conversationId?: string;
   conversation?: Conversation;
   conversations?: Conversation[];
   [key: string]: unknown;
-}
+};
 
-function responseError(
-  response?: SocketResponse,
-  fallback = "Something went wrong."
-): string {
-  if (typeof response?.error === "string") {
-    return response.error;
-  }
+type SearchPayload = {
+  error?: string;
+  message?: string;
+  users?: User[];
+  data?: User[] | { users?: User[] };
+};
 
-  if (typeof response?.message === "string") {
-    return response.message;
-  }
-
-  return fallback;
-}
-
-function getMessageId(message: ChatMessage): string {
-  return (
-    message.id ||
-    message._id ||
-    `${message.conversationId}-${message.senderId}-${message.createdAt || message.timestamp || message.content || message.text || ""}`
-  );
-}
-
-function getMessageText(message: ChatMessage): string {
-  return message.content ?? message.text ?? "";
-}
-
-function getMessageSenderName(message: ChatMessage): string {
-  return (
-    message.senderName ||
-    message.sender?.name ||
-    message.sender?.email ||
-    "User"
-  );
-}
-
-function getConversationId(conversation?: Conversation): string {
-  return conversation?.id || conversation?.conversationId || "";
-}
-
-function getStoredToken(): string {
+function tokenFromStorage() {
   if (typeof window === "undefined") return "";
 
   return (
-    localStorage.getItem("token") ||
     localStorage.getItem("nash_token") ||
+    localStorage.getItem("token") ||
     localStorage.getItem("accessToken") ||
+    localStorage.getItem("authToken") ||
     ""
   );
 }
 
-function getStoredUserId(): string {
+function clearSavedLogin() {
+  if (typeof window === "undefined") return;
+
+  [
+    "nash_token",
+    "nash_user",
+    "token",
+    "accessToken",
+    "authToken",
+  ].forEach((key) => localStorage.removeItem(key));
+}
+
+function currentUserFromStorage() {
   if (typeof window === "undefined") return "";
 
-  const storedId =
+  const stored =
     localStorage.getItem("nash_user_id") ||
     localStorage.getItem("userId") ||
     localStorage.getItem("user_id");
 
-  if (storedId) return String(storedId);
+  if (stored) return stored;
 
   try {
-    const token = getStoredToken();
-    const payloadPart = token.split(".")[1];
+    const token = tokenFromStorage();
+    const payload = token.split(".")[1];
+    if (!payload) return "";
 
-    if (!payloadPart) return "";
-
-    const base64 = payloadPart
-      .replace(/-/g, "+")
-      .replace(/_/g, "/");
-
-    const payload = JSON.parse(
-      atob(base64.padEnd(Math.ceil(base64.length / 4) * 4, "="))
+    const decoded = JSON.parse(
+      atob(
+        payload
+          .replace(/-/g, "+")
+          .replace(/_/g, "/")
+          .padEnd(Math.ceil(payload.length / 4) * 4, "=")
+      )
     );
 
-    const id = payload.userId ?? payload.id ?? payload.sub;
-
-    return id == null ? "" : String(id);
+    return String(decoded.userId ?? decoded.id ?? decoded.sub ?? "");
   } catch {
     return "";
   }
 }
 
-function getUserId(user?: ChatUser): string {
-  return String(user?.id ?? user?.userId ?? "");
+function subscribeToStorage(callback: () => void) {
+  window.addEventListener("storage", callback);
+  return () => window.removeEventListener("storage", callback);
 }
 
-function isOwnMessage(
-  message: ChatMessage,
-  currentUserId: string
-): boolean {
-  const senderId = String(message.senderId ?? "").trim();
-  const userId = String(currentUserId ?? "").trim();
-
-  return Boolean(userId && senderId && senderId === userId);
+function conversationIdOf(conversation?: Conversation) {
+  return String(conversation?.id || conversation?.conversationId || "");
 }
 
-function getOtherUser(
-  conversation: Conversation,
-  currentUserId: string
-): ChatUser | undefined {
-  const directUser = conversation.otherUser || conversation.recipient;
+function userIdOf(user: User) {
+  return String(user.id || user.userId || "");
+}
 
-  if (directUser) return directUser;
+function messageIdOf(message: Message) {
+  return String(
+    message.id ||
+      message._id ||
+      `${message.conversationId}-${message.senderId}-${message.createdAt || message.timestamp || message.content || message.text || ""}`
+  );
+}
+
+function messageText(message: Message) {
+  return message.content ?? message.text ?? "";
+}
+
+function errorText(response?: Ack, fallback = "Something went wrong.") {
+  if (typeof response?.error === "string") return response.error;
+  if (typeof response?.message === "string") return response.message;
+  return fallback;
+}
+
+function otherUserOf(conversation: Conversation, currentId: string) {
+  if (conversation.otherUser) return conversation.otherUser;
+  if (conversation.recipient) return conversation.recipient;
 
   const members =
     conversation.members ||
@@ -174,207 +165,164 @@ function getOtherUser(
     conversation.participants ||
     [];
 
-  return members.find(
-    (member) => getUserId(member) !== String(currentUserId)
-  );
+  return members.find((member) => userIdOf(member) !== currentId);
 }
 
-function getConversationDisplayName(
-  conversation: Conversation,
-  currentUserId: string
-): string {
-  const person = getOtherUser(conversation, currentUserId);
+function displayName(user?: User) {
+  return user?.name || user?.username || user?.email || "User";
+}
 
-  return (
-    person?.name ||
-    person?.username ||
-    person?.email ||
-    conversation.title ||
-    conversation.name ||
-    "User"
-  );
+// Reads the list of users out of the different shapes the search API may return.
+function extractUsers(data: unknown): User[] {
+  if (Array.isArray(data)) return data as User[];
+  if (!data || typeof data !== "object") return [];
+
+  const payload = data as SearchPayload;
+
+  if (Array.isArray(payload.users)) return payload.users;
+  if (Array.isArray(payload.data)) return payload.data;
+  if (payload.data && Array.isArray(payload.data.users)) {
+    return payload.data.users;
+  }
+
+  return [];
 }
 
 export default function ChatPage() {
+  const router = useRouter();
+  const socketRef = useRef<Socket | null>(null);
+  const activeIdRef = useRef("");
+  const openingRef = useRef("");
+
   const [connected, setConnected] = useState(false);
-  const [users, setUsers] = useState<ChatUser[]>([]);
+
+  const currentUserId = useSyncExternalStore(
+    subscribeToStorage,
+    currentUserFromStorage,
+    () => ""
+  );
+
+  const [users, setUsers] = useState<User[]>([]);
   const [search, setSearch] = useState("");
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState("");
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversationId, setActiveConversationId] = useState("");
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [messageInput, setMessageInput] = useState("");
 
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [sending, setSending] = useState(false);
-  const [startingConversation, setStartingConversation] = useState(false);
+  const [starting, setStarting] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const [currentUserId, setCurrentUserId] = useState("");
 
-  const socketRef = useRef<Socket | null>(null);
-  const conversationRef = useRef("");
-  const messagesEndRef = useRef<HTMLDivElement | null>(null);
-  const openingRef = useRef<string | null>(null);
+  const searchActive = search.trim().length >= 2;
+  const visibleUsers = searchActive ? users : [];
 
-  useEffect(() => {
-    setCurrentUserId(getStoredUserId());
-  }, []);
-
-  useEffect(() => {
-    conversationRef.current = activeConversationId;
-
-    if (activeConversationId) {
-      localStorage.setItem(
-        "nash_active_conversation",
-        activeConversationId
-      );
-    } else {
-      localStorage.removeItem("nash_active_conversation");
-    }
-  }, [activeConversationId]);
-
-  const addMessage = useCallback((incoming: ChatMessage) => {
-    if (!incoming?.conversationId || incoming?.senderId == null) {
-      return;
-    }
+  const addMessage = useCallback((incoming: Message) => {
+    if (!incoming?.conversationId || incoming.senderId == null) return;
 
     setMessages((previous) => {
-      const incomingId = getMessageId(incoming);
-      const existingIndex = previous.findIndex(
-        (message) => getMessageId(message) === incomingId
-      );
+      const id = messageIdOf(incoming);
+      const index = previous.findIndex((item) => messageIdOf(item) === id);
 
-      if (existingIndex !== -1) {
-        // Merge the incoming version so senderName is not lost
-        // if the same message arrived before its acknowledgement.
-        const updated = [...previous];
-        updated[existingIndex] = {
-          ...updated[existingIndex],
-          ...incoming,
-        };
-        return updated;
+      if (index >= 0) {
+        const copy = [...previous];
+        copy[index] = { ...copy[index], ...incoming };
+        return copy;
       }
 
       return [...previous, incoming].sort((a, b) => {
-        const aTime = new Date(
-          a.createdAt || a.timestamp || 0
-        ).getTime();
-
-        const bTime = new Date(
-          b.createdAt || b.timestamp || 0
-        ).getTime();
-
-        return aTime - bTime;
+        const at = new Date(a.createdAt || a.timestamp || 0).getTime();
+        const bt = new Date(b.createdAt || b.timestamp || 0).getTime();
+        return at - bt;
       });
     });
   }, []);
 
-  const upsertConversation = useCallback(
-    (conversation: Conversation) => {
-      const id = getConversationId(conversation);
-      if (!id) return;
+  const upsertConversation = useCallback((conversation: Conversation) => {
+    const id = conversationIdOf(conversation);
+    if (!id) return;
 
-      setConversations((previous) => {
-        const exists = previous.some(
-          (item) => getConversationId(item) === id
-        );
+    setConversations((previous) => {
+      const exists = previous.some((item) => conversationIdOf(item) === id);
 
-        if (exists) {
-          return previous.map((item) =>
-            getConversationId(item) === id
-              ? { ...item, ...conversation, id }
-              : item
-          );
+      return exists
+        ? previous.map((item) =>
+            conversationIdOf(item) === id ? { ...item, ...conversation, id } : item
+          )
+        : [{ ...conversation, id }, ...previous];
+    });
+  }, []);
+
+  const openConversation = useCallback(
+    (rawId: string) => {
+      const id = String(rawId || "").trim();
+      const socket = socketRef.current;
+
+      if (!id) {
+        setError("This conversation has no valid ID.");
+        return;
+      }
+
+      if (!socket?.connected) {
+        setError("Chat server is disconnected. Check the server and try again.");
+        return;
+      }
+
+      if (openingRef.current === id) return;
+
+      openingRef.current = id;
+      activeIdRef.current = id;
+      setActiveConversationId(id);
+      setMessages([]);
+      setLoadingMessages(true);
+      setError("");
+      setNotice("");
+
+      socket.emit("conversation:join", id, (joinResponse?: Ack) => {
+        if (activeIdRef.current !== id) return;
+
+        if (!joinResponse?.success) {
+          openingRef.current = "";
+          setLoadingMessages(false);
+          setError(errorText(joinResponse, "Could not open this conversation."));
+          return;
         }
 
-        return [{ ...conversation, id }, ...previous];
+        socket.emit("message:history", id, (historyResponse?: Ack) => {
+          if (activeIdRef.current !== id) return;
+
+          openingRef.current = "";
+          setLoadingMessages(false);
+
+          if (!historyResponse?.success) {
+            setError(errorText(historyResponse, "Could not load message history."));
+            return;
+          }
+
+          setMessages(
+            Array.isArray(historyResponse.messages)
+              ? historyResponse.messages
+              : []
+          );
+        });
       });
     },
     []
   );
 
-  const openConversation = useCallback((conversationId: string) => {
-    const id = String(conversationId || "").trim();
-    if (!id) return;
-
-    const socket = socketRef.current;
-
-    if (!socket?.connected) {
-      setError("You are not connected to the chat server.");
-      return;
-    }
-
-    if (openingRef.current === id) return;
-
-    openingRef.current = id;
-    conversationRef.current = id;
-
-    setActiveConversationId(id);
-    setMessages([]);
-    setLoadingMessages(true);
-    setError("");
-    setNotice("");
-
-    socket.emit(
-      "conversation:join",
-      id,
-      (joinResponse?: SocketResponse) => {
-        if (conversationRef.current !== id) {
-          openingRef.current = null;
-          return;
-        }
-
-        if (!joinResponse?.success) {
-          openingRef.current = null;
-          setLoadingMessages(false);
-          setError(
-            responseError(
-              joinResponse,
-              "Could not join the conversation."
-            )
-          );
-          return;
-        }
-
-        socket.emit(
-          "message:history",
-          id,
-          (historyResponse?: SocketResponse) => {
-            openingRef.current = null;
-
-            if (conversationRef.current !== id) return;
-
-            setLoadingMessages(false);
-
-            if (!historyResponse?.success) {
-              setError(
-                responseError(
-                  historyResponse,
-                  "Could not load message history."
-                )
-              );
-              return;
-            }
-
-            setMessages(historyResponse.messages ?? []);
-          }
-        );
-      }
-    );
-  }, []);
-
   const startConversation = useCallback(
-    (targetUserId: string) => {
+    (targetId: string) => {
       const socket = socketRef.current;
-      const id = String(targetUserId || "").trim();
+      const id = String(targetId || "").trim();
 
       if (!id) return;
 
       if (!socket?.connected) {
-        setError("You are not connected to the chat server.");
+        setError("Chat server is disconnected.");
         return;
       }
 
@@ -383,129 +331,118 @@ export default function ChatPage() {
         return;
       }
 
-      setStartingConversation(true);
+      setStarting(true);
       setError("");
       setSearchError("");
-      setNotice("");
 
-      socket.emit(
-        "conversation:start",
-        { userId: id },
-        (response?: SocketResponse) => {
-          setStartingConversation(false);
+      socket.emit("conversation:start", { userId: id }, (response?: Ack) => {
+        setStarting(false);
 
-          if (!response?.success) {
-            setError(
-              responseError(
-                response,
-                "Could not start the conversation."
-              )
-            );
-            return;
-          }
-
-          const conversationId =
-            response.conversationId ||
-            getConversationId(response.conversation);
-
-          if (!conversationId) {
-            setError("The server did not return a conversation ID.");
-            return;
-          }
-
-          const selectedUser = users.find(
-            (user) => String(user.id) === id
-          );
-
-          upsertConversation({
-            ...(response.conversation ?? {}),
-            id: conversationId,
-            otherUser:
-              response.conversation?.otherUser ||
-              selectedUser ||
-              undefined,
-            name:
-              response.conversation?.name ||
-              selectedUser?.name ||
-              selectedUser?.username ||
-              selectedUser?.email ||
-              "User",
-          });
-
-          openConversation(conversationId);
+        if (!response?.success) {
+          setError(errorText(response, "Could not start the conversation."));
+          return;
         }
-      );
+
+        const conversationId =
+          response.conversationId ||
+          conversationIdOf(response.conversation as Conversation | undefined);
+
+        if (!conversationId) {
+          setError("The server did not return a conversation ID.");
+          return;
+        }
+
+        const selectedUser = users.find((user) => userIdOf(user) === id);
+
+        upsertConversation({
+          ...(response.conversation as Conversation | undefined),
+          id: conversationId,
+          otherUser: selectedUser,
+          name: displayName(selectedUser),
+        });
+
+        openConversation(conversationId);
+      });
     },
     [currentUserId, openConversation, upsertConversation, users]
   );
 
   useEffect(() => {
-    const token = getStoredToken();
+    const token = tokenFromStorage();
 
+    // No saved login: go straight to the login page.
     if (!token) {
-      setConnected(false);
-      setError(
-        "Please sign in first. No authentication token was found in localStorage."
-      );
+      router.replace("/login");
       return;
     }
 
+    let redirectTimer: ReturnType<typeof setTimeout> | null = null;
+
     const socket = io(API_URL, {
+      auth: { token },
       transports: ["websocket", "polling"],
       withCredentials: true,
-      auth: { token },
     });
 
     socketRef.current = socket;
 
-    const handleConnect = () => {
+    const onConnect = () => {
       setConnected(true);
       setError("");
+
       socket.emit("presence:list");
 
-      // Ask for the conversation list whenever the socket connects.
-      socket.emit(
-        "conversation:list",
-        (response?: SocketResponse) => {
-          if (response?.success && response.conversations) {
-            const list = response.conversations as Conversation[];
-            setConversations(list);
-          }
+      socket.emit("conversation:list", (response?: Ack) => {
+        if (response?.success && Array.isArray(response.conversations)) {
+          setConversations(response.conversations);
         }
-      );
+      });
     };
 
-    const handleDisconnect = () => setConnected(false);
+    const onDisconnect = () => setConnected(false);
 
-    const handleConnectError = (socketError: Error) => {
-      console.error("Socket connection failed:", socketError);
+    const onConnectError = (err: Error) => {
+      console.error("Chat socket connection failed:", err);
       setConnected(false);
-      setError(`Connection failed: ${socketError.message}`);
+
+      // The server says the saved login is no good: send the person to log in.
+      if (
+        err.message === "Invalid or expired token" ||
+        err.message === "Authentication token is required" ||
+        err.message === "Invalid token payload"
+      ) {
+        socket.disconnect();
+        clearSavedLogin();
+        setError("Your session has ended. Taking you to the login page…");
+
+        if (redirectTimer) clearTimeout(redirectTimer);
+        redirectTimer = setTimeout(() => {
+          router.replace("/login");
+        }, 1500);
+        return;
+      }
+
+      setError(`Cannot connect to chat server: ${err.message}`);
     };
 
-    const handleNewMessage = (
-      payload: { message?: ChatMessage } & Partial<ChatMessage>
-    ) => {
-      const incoming = payload?.message ?? (payload as ChatMessage);
+    const onNewMessage = (payload: { message?: Message } & Partial<Message>) => {
+      const message = payload?.message ?? (payload as Message);
 
       if (
-        incoming?.conversationId &&
-        String(incoming.conversationId) === conversationRef.current
+        message?.conversationId &&
+        String(message.conversationId) === activeIdRef.current
       ) {
-        addMessage(incoming);
+        addMessage(message);
       }
     };
 
-    const handleConversationList = (payload: {
-      success?: boolean;
-      conversations?: Conversation[];
-    }) => {
+    const onConversationList = (payload: Ack) => {
       if (payload?.success && Array.isArray(payload.conversations)) {
         setConversations(payload.conversations);
       }
     };
 
-    const handleConversationInvited = (payload: {
+    const onInvited = (payload: {
       conversationId?: string;
       conversation?: Conversation;
       userId?: string;
@@ -514,12 +451,12 @@ export default function ChatPage() {
     }) => {
       const id =
         payload.conversationId ||
-        getConversationId(payload.conversation);
+        conversationIdOf(payload.conversation);
 
       if (!id) return;
 
       upsertConversation({
-        ...(payload.conversation ?? {}),
+        ...(payload.conversation || {}),
         id,
         otherUser: {
           id: payload.userId || "",
@@ -529,57 +466,49 @@ export default function ChatPage() {
       });
 
       setNotice("You have been added to a conversation.");
-      openConversation(id);
     };
 
-    socket.on("connect", handleConnect);
-    socket.on("disconnect", handleDisconnect);
-    socket.on("connect_error", handleConnectError);
-    socket.on("message:new", handleNewMessage);
-    socket.on("conversation:list", handleConversationList);
-    socket.on("conversation:invited", handleConversationInvited);
+    socket.on("connect", onConnect);
+    socket.on("disconnect", onDisconnect);
+    socket.on("connect_error", onConnectError);
+    socket.on("message:new", onNewMessage);
+    socket.on("conversation:list", onConversationList);
+    socket.on("conversation:invited", onInvited);
 
     return () => {
-      socket.off("connect", handleConnect);
-      socket.off("disconnect", handleDisconnect);
-      socket.off("connect_error", handleConnectError);
-      socket.off("message:new", handleNewMessage);
-      socket.off("conversation:list", handleConversationList);
-      socket.off("conversation:invited", handleConversationInvited);
+      if (redirectTimer) clearTimeout(redirectTimer);
+
+      socket.off("connect", onConnect);
+      socket.off("disconnect", onDisconnect);
+      socket.off("connect_error", onConnectError);
+      socket.off("message:new", onNewMessage);
+      socket.off("conversation:list", onConversationList);
+      socket.off("conversation:invited", onInvited);
       socket.disconnect();
 
-      if (socketRef.current === socket) {
-        socketRef.current = null;
-      }
+      if (socketRef.current === socket) socketRef.current = null;
     };
-  }, [addMessage, openConversation, upsertConversation]);
+  }, [addMessage, upsertConversation, router]);
 
   useEffect(() => {
     const query = search.trim();
-    setSearchError("");
 
-    if (query.length < 2) {
-      setUsers([]);
-      setSearchLoading(false);
-      return;
-    }
+    // Too short to search: nothing to fetch (the list is hidden by `searchActive`).
+    if (query.length < 2) return;
 
     const controller = new AbortController();
 
     const timer = window.setTimeout(async () => {
+      setSearchError("");
       setSearchLoading(true);
 
       try {
-        const token = getStoredToken();
-
+        const token = tokenFromStorage();
         const response = await fetch(
           `${API_URL}/api/users/search?q=${encodeURIComponent(query)}`,
           {
-            method: "GET",
             credentials: "include",
-            headers: token
-              ? { Authorization: `Bearer ${token}` }
-              : {},
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
             signal: controller.signal,
           }
         );
@@ -593,51 +522,29 @@ export default function ChatPage() {
           data = { message: raw };
         }
 
-        const result = data as {
-          users?: ChatUser[];
-          data?: ChatUser[] | { users?: ChatUser[] };
-          error?: string;
-          message?: string;
-        };
-
         if (!response.ok) {
+          const payload = (
+            data && typeof data === "object" ? data : {}
+          ) as SearchPayload;
+
           throw new Error(
-            result.error ||
-              result.message ||
-              `User search failed (HTTP ${response.status}).`
+            payload.error ||
+              payload.message ||
+              `Search failed (${response.status}).`
           );
         }
 
-        const foundUsers = Array.isArray(data)
-          ? (data as ChatUser[])
-          : Array.isArray(result.users)
-            ? result.users
-            : Array.isArray(result.data)
-              ? result.data
-              : result.data &&
-                  !Array.isArray(result.data) &&
-                  Array.isArray(result.data.users)
-                ? result.data.users
-                : [];
-
         setUsers(
-          foundUsers.filter(
-            (user) =>
-              user?.id && String(user.id) !== currentUserId
+          extractUsers(data).filter(
+            (user) => user?.id && userIdOf(user) !== currentUserId
           )
         );
-      } catch (searchError) {
-        if (
-          searchError instanceof Error &&
-          searchError.name !== "AbortError"
-        ) {
-          console.error("User search failed:", searchError);
-          setSearchError(searchError.message);
+      } catch (err) {
+        if (err instanceof Error && err.name !== "AbortError") {
+          setSearchError(err.message);
         }
       } finally {
-        if (!controller.signal.aborted) {
-          setSearchLoading(false);
-        }
+        if (!controller.signal.aborted) setSearchLoading(false);
       }
     }, 300);
 
@@ -647,24 +554,17 @@ export default function ChatPage() {
     };
   }, [search, currentUserId]);
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({
-      behavior: "smooth",
-      block: "end",
-    });
-  }, [messages]);
-
   const sendMessage = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     const content = messageInput.trim();
-    const conversationId = conversationRef.current;
+    const conversationId = activeIdRef.current;
     const socket = socketRef.current;
 
-    if (!content || !conversationId || sending) return;
+    if (!content || !conversationId || sending || loadingMessages) return;
 
     if (!socket?.connected) {
-      setError("You are not connected to the chat server.");
+      setError("Chat server is disconnected.");
       return;
     }
 
@@ -674,13 +574,11 @@ export default function ChatPage() {
     socket.emit(
       "message:send",
       { conversationId, content },
-      (response?: SocketResponse) => {
+      (response?: Ack) => {
         setSending(false);
 
         if (!response?.success) {
-          setError(
-            responseError(response, "Message could not be sent.")
-          );
+          setError(errorText(response, "Message could not be sent."));
           return;
         }
 
@@ -691,30 +589,32 @@ export default function ChatPage() {
           typeof response.message === "object" &&
           "conversationId" in response.message
         ) {
-          addMessage(response.message as ChatMessage);
+          addMessage(response.message as Message);
         }
       }
     );
   };
 
+  const activeConversation = conversations.find(
+    (conversation) => conversationIdOf(conversation) === activeConversationId
+  );
+
+  const activeUser = activeConversation
+    ? otherUserOf(activeConversation, currentUserId)
+    : undefined;
+
   return (
     <main className="flex h-screen min-h-0 bg-gray-950 text-white">
-      <aside className="flex w-80 shrink-0 flex-col border-r border-gray-800 bg-gray-900">
+      <aside className="flex w-72 shrink-0 flex-col border-r border-gray-800 bg-gray-900 sm:w-80">
         <div className="border-b border-gray-800 p-5">
           <h1 className="text-2xl font-bold">Nash</h1>
-          <p className="mt-1 text-sm text-gray-400">
-            {connected ? "Connected" : "Offline"}
-          </p>
-          <p className="mt-1 break-all text-xs text-gray-500">
-            {API_URL}
+          <p className={`mt-1 text-sm ${connected ? "text-green-400" : "text-red-400"}`}>
+            {connected ? "Connected" : "Disconnected"}
           </p>
         </div>
 
         <div className="border-b border-gray-800 p-4">
-          <label
-            htmlFor="user-search"
-            className="mb-2 block text-sm font-medium"
-          >
+          <label htmlFor="user-search" className="mb-2 block text-sm font-medium">
             Find someone
           </label>
 
@@ -726,160 +626,102 @@ export default function ChatPage() {
             className="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 outline-none focus:border-blue-500"
           />
 
-          <p className="mt-2 text-xs text-gray-500">
-            Enter at least 2 characters.
-          </p>
-
-          {searchLoading && (
+          {searchActive && searchLoading && (
             <p className="mt-2 text-sm text-gray-400">Searching…</p>
           )}
-
-          {searchError && (
-            <p className="mt-2 break-words text-sm text-red-300">
-              {searchError}
-            </p>
+          {searchActive && searchError && (
+            <p className="mt-2 break-words text-sm text-red-300">{searchError}</p>
           )}
 
-          {users.length > 0 && (
-            <div className="mt-3 max-h-64 space-y-2 overflow-y-auto">
-              {users.map((user) => (
-                <button
-                  key={user.id}
-                  type="button"
-                  disabled={!connected || startingConversation}
-                  onClick={() => startConversation(user.id)}
-                  className="flex w-full items-center justify-between rounded-lg bg-gray-800 p-3 text-left hover:bg-gray-700 disabled:opacity-50"
-                >
-                  <span className="min-w-0">
-                    <span className="block truncate font-medium">
-                      {user.name || user.username || user.email || "User"}
-                    </span>
-                    {user.email && (
-                      <span className="block truncate text-xs text-gray-400">
-                        {user.email}
-                      </span>
-                    )}
-                  </span>
-                  <span className="ml-2 text-sm text-blue-400">
-                    {startingConversation ? "…" : "Chat"}
-                  </span>
-                </button>
-              ))}
-            </div>
-          )}
+          {visibleUsers.map((user) => (
+            <button
+              key={userIdOf(user)}
+              type="button"
+              disabled={!connected || starting}
+              onClick={() => startConversation(userIdOf(user))}
+              className="mt-2 flex w-full items-center justify-between rounded-lg bg-gray-800 p-3 text-left hover:bg-gray-700 disabled:opacity-50"
+            >
+              <span className="min-w-0">
+                <span className="block truncate font-medium">{displayName(user)}</span>
+                <span className="block truncate text-xs text-gray-400">{user.email}</span>
+              </span>
+              <span className="ml-2 text-sm text-blue-300">{starting ? "…" : "Chat"}</span>
+            </button>
+          ))}
 
-          {search.trim().length >= 2 &&
+          {searchActive &&
             !searchLoading &&
             !searchError &&
-            users.length === 0 && (
-              <p className="mt-3 text-sm text-gray-500">
-                No users found.
-              </p>
+            visibleUsers.length === 0 && (
+              <p className="mt-2 text-sm text-gray-500">No users found.</p>
             )}
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4">
+        <div className="flex-1 space-y-2 overflow-y-auto p-4">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+            Conversations
+          </p>
+
           {conversations.length === 0 ? (
-            <p className="text-sm text-gray-500">
-              Search for someone above to start chatting.
-            </p>
+            <p className="text-sm text-gray-500">Search for someone to start chatting.</p>
           ) : (
-            <div className="space-y-2">
-              {conversations.map((conversation) => {
-                const id = getConversationId(conversation);
-                if (!id) return null;
+            conversations.map((conversation) => {
+              const id = conversationIdOf(conversation);
+              if (!id) return null;
 
-                const person = getOtherUser(
-                  conversation,
-                  currentUserId
-                );
+              const person = otherUserOf(conversation, currentUserId);
 
-                const displayName =
-                  person?.name ||
-                  person?.username ||
-                  person?.email ||
-                  conversation.title ||
-                  conversation.name ||
-                  "User";
-
-                const email = person?.email;
-
-                return (
-                  <button
-                    key={id}
-                    type="button"
-                    onClick={() => openConversation(id)}
-                    className={`w-full rounded-lg p-3 text-left ${
-                      activeConversationId === id
-                        ? "bg-blue-600"
-                        : "bg-gray-800 hover:bg-gray-700"
-                    }`}
-                  >
-                    <span className="block truncate font-medium">
-                      {displayName}
-                    </span>
-
-                    {email && (
-                      <span className="mt-1 block truncate text-xs text-gray-300">
-                        {email}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => openConversation(id)}
+                  className={`w-full rounded-lg p-3 text-left ${
+                    activeConversationId === id
+                      ? "bg-blue-600"
+                      : "bg-gray-800 hover:bg-gray-700"
+                  }`}
+                >
+                  <span className="block truncate font-medium">
+                    {displayName(person) || conversation.title || conversation.name || "User"}
+                  </span>
+                  <span className="block truncate text-xs text-gray-300">
+                    {person?.email || ""}
+                  </span>
+                </button>
+              );
+            })
           )}
         </div>
       </aside>
 
       <section className="flex min-w-0 flex-1 flex-col">
-        <header className="flex min-h-16 items-center justify-between border-b border-gray-800 px-6 py-4">
-          <h2 className="font-semibold">
-            {activeConversationId
-              ? (() => {
-                  const active = conversations.find(
-                    (conversation) =>
-                      getConversationId(conversation) ===
-                      activeConversationId
-                  );
-
-                  return active
-                    ? getConversationDisplayName(active, currentUserId)
-                    : "Chat";
-                })()
-              : "Welcome to Nash"}
+        <header className="flex min-h-16 items-center justify-between gap-3 border-b border-gray-800 px-4 py-4 sm:px-6">
+          <h2 className="truncate font-semibold">
+            {activeUser
+              ? displayName(activeUser)
+              : activeConversation
+                ? activeConversation.title || activeConversation.name || "Chat"
+                : "Welcome to Nash"}
           </h2>
-
-          <span
-            className={`text-sm ${
-              connected ? "text-green-400" : "text-red-400"
-            }`}
-          >
+          <span className={`text-sm ${connected ? "text-green-400" : "text-red-400"}`}>
             {connected ? "Online" : "Offline"}
           </span>
         </header>
 
         {notice && (
-          <div className="border-b border-blue-900 bg-blue-950 px-6 py-3 text-sm text-blue-200">
+          <div className="bg-blue-950 px-4 py-3 text-sm text-blue-200">
             {notice}
-            <button
-              type="button"
-              onClick={() => setNotice("")}
-              className="ml-3 underline"
-            >
+            <button type="button" onClick={() => setNotice("")} className="ml-3 underline">
               Dismiss
             </button>
           </div>
         )}
 
         {error && (
-          <div className="border-b border-red-900 bg-red-950 px-6 py-3 text-sm text-red-200">
+          <div className="bg-red-950 px-4 py-3 text-sm text-red-200">
             {error}
-            <button
-              type="button"
-              onClick={() => setError("")}
-              className="ml-3 underline"
-            >
+            <button type="button" onClick={() => setError("")} className="ml-3 underline">
               Dismiss
             </button>
           </div>
@@ -888,41 +730,30 @@ export default function ChatPage() {
         {!activeConversationId ? (
           <div className="flex flex-1 items-center justify-center p-8 text-center">
             <div>
-              <h3 className="text-xl font-semibold">
-                Your conversations, all in one place
-              </h3>
-              <p className="mt-2 text-gray-400">
-                Search for a user to start chatting.
-              </p>
+              <h3 className="text-xl font-semibold">Your conversations, all in one place</h3>
+              <p className="mt-2 text-gray-400">Search for a user to start chatting.</p>
             </div>
           </div>
         ) : (
           <>
-            <div className="flex-1 space-y-4 overflow-y-auto p-6">
+            <div className="flex-1 space-y-4 overflow-y-auto p-4 sm:p-6">
               {loadingMessages ? (
-                <p className="text-center text-gray-400">
-                  Loading messages…
-                </p>
+                <p className="text-center text-gray-400">Loading messages…</p>
               ) : messages.length === 0 ? (
-                <p className="text-center text-gray-500">
-                  No messages yet. Say hello!
-                </p>
+                <p className="text-center text-gray-500">No messages yet. Say hello!</p>
               ) : (
                 messages.map((message) => {
-                  const mine = isOwnMessage(
-                    message,
-                    currentUserId
-                  );
+                  const mine =
+                    currentUserId !== "" &&
+                    String(message.senderId) === currentUserId;
 
                   return (
                     <div
-                      key={getMessageId(message)}
-                      className={`flex w-full ${
-                        mine ? "justify-end" : "justify-start"
-                      }`}
+                      key={messageIdOf(message)}
+                      className={`flex w-full ${mine ? "justify-end" : "justify-start"}`}
                     >
                       <div
-                        className={`max-w-[75%] rounded-2xl px-4 py-3 shadow-sm ${
+                        className={`max-w-[85%] break-words rounded-2xl px-4 py-3 sm:max-w-[75%] ${
                           mine
                             ? "rounded-br-md bg-blue-600 text-white"
                             : "rounded-bl-md bg-gray-200 text-gray-900"
@@ -930,23 +761,15 @@ export default function ChatPage() {
                       >
                         {!mine && (
                           <p className="mb-1 text-xs font-semibold text-gray-600">
-                            {getMessageSenderName(message)}
+                            {message.senderName || message.sender?.name || message.sender?.email || "User"}
                           </p>
                         )}
 
-                        <p className="whitespace-pre-wrap break-words">
-                          {getMessageText(message)}
-                        </p>
+                        <p className="whitespace-pre-wrap">{messageText(message)}</p>
 
                         {(message.createdAt || message.timestamp) && (
-                          <p
-                            className={`mt-1 text-right text-xs ${
-                              mine ? "text-blue-100" : "text-gray-500"
-                            }`}
-                          >
-                            {new Date(
-                              message.createdAt || message.timestamp!
-                            ).toLocaleTimeString([], {
+                          <p className={`mt-1 text-right text-xs ${mine ? "text-blue-100" : "text-gray-500"}`}>
+                            {new Date(message.createdAt || message.timestamp!).toLocaleTimeString([], {
                               hour: "2-digit",
                               minute: "2-digit",
                             })}
@@ -957,18 +780,19 @@ export default function ChatPage() {
                   );
                 })
               )}
-
-              <div ref={messagesEndRef} />
             </div>
 
-            <form
-              onSubmit={sendMessage}
-              className="flex gap-3 border-t border-gray-800 p-4"
-            >
+            <form onSubmit={sendMessage} className="flex gap-2 border-t border-gray-800 p-3 sm:gap-3 sm:p-4">
               <input
                 value={messageInput}
                 onChange={(event) => setMessageInput(event.target.value)}
-                placeholder="Type a message…"
+                placeholder={
+                  !connected
+                    ? "Connecting to chat server…"
+                    : loadingMessages
+                      ? "Loading conversation…"
+                      : "Type a message…"
+                }
                 maxLength={5000}
                 disabled={!connected || sending || loadingMessages}
                 className="min-w-0 flex-1 rounded-xl border border-gray-700 bg-gray-900 px-4 py-3 outline-none focus:border-blue-500 disabled:opacity-50"
@@ -976,13 +800,8 @@ export default function ChatPage() {
 
               <button
                 type="submit"
-                disabled={
-                  !connected ||
-                  sending ||
-                  !messageInput.trim() ||
-                  loadingMessages
-                }
-                className="rounded-xl bg-blue-600 px-6 py-3 font-semibold hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={!connected || sending || loadingMessages || !messageInput.trim()}
+                className="rounded-xl bg-blue-600 px-4 py-3 font-semibold hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50 sm:px-6"
               >
                 {sending ? "Sending…" : "Send"}
               </button>
