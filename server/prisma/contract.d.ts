@@ -34,9 +34,9 @@ import type {
 } from '@prisma/orm-postgres/contract/types';
 
 export type StorageHash =
-  StorageHashBase<'65b7c2414df7b1a8d06ed70c67ed7b9d4661823261539d0cd4c04fffae19c2ab'>;
+  StorageHashBase<'8accdfe9233a3fe67d414d5546ddec60061559f8b08f450425134d0fdf6e9268'>;
 export type ExecutionHash =
-  ExecutionHashBase<'2dd21bb7ab0791c18403c5135efa47100efbec01756de7e6606c7ee01769eeb1'>;
+  ExecutionHashBase<'8558a6f1c5e691fa9b547b9dbb43522d1189bebbaf82a8a89f3f388b98179935'>;
 export type ProfileHash =
   ProfileHashBase<'3916f444a8a17ad749191acf9e08dad97d1a327b88c2f1d45d12f240296aa8b2'>;
 
@@ -261,6 +261,16 @@ export type FieldOutputTypes = {
       readonly joinedAt: CodecTypes['pg/timestamptz-string@1']['output'];
       readonly userId: CodecTypes['pg/text@1']['output'];
     };
+    readonly File: {
+      readonly createdAt: CodecTypes['pg/timestamptz-string@1']['output'];
+      readonly id: CodecTypes['pg/text@1']['output'];
+      readonly meetingId: CodecTypes['pg/text@1']['output'];
+      readonly mimeType: CodecTypes['pg/text@1']['output'];
+      readonly originalName: CodecTypes['pg/text@1']['output'];
+      readonly size: CodecTypes['pg/int4@1']['output'];
+      readonly storedName: CodecTypes['pg/text@1']['output'];
+      readonly uploaderId: CodecTypes['pg/text@1']['output'];
+    };
     readonly Meeting: {
       readonly createdAt: CodecTypes['pg/timestamptz-string@1']['output'];
       readonly hostId: CodecTypes['pg/text@1']['output'];
@@ -298,6 +308,16 @@ export type FieldInputTypes = {
       readonly id: CodecTypes['pg/text@1']['input'];
       readonly joinedAt: CodecTypes['pg/timestamptz-string@1']['input'];
       readonly userId: CodecTypes['pg/text@1']['input'];
+    };
+    readonly File: {
+      readonly createdAt: CodecTypes['pg/timestamptz-string@1']['input'];
+      readonly id: CodecTypes['pg/text@1']['input'];
+      readonly meetingId: CodecTypes['pg/text@1']['input'];
+      readonly mimeType: CodecTypes['pg/text@1']['input'];
+      readonly originalName: CodecTypes['pg/text@1']['input'];
+      readonly size: CodecTypes['pg/int4@1']['input'];
+      readonly storedName: CodecTypes['pg/text@1']['input'];
+      readonly uploaderId: CodecTypes['pg/text@1']['input'];
     };
     readonly Meeting: {
       readonly createdAt: CodecTypes['pg/timestamptz-string@1']['input'];
@@ -337,6 +357,16 @@ export type StorageColumnTypes = {
       readonly joinedAt: CodecTypes['pg/timestamptz-string@1']['output'];
       readonly userId: CodecTypes['pg/text@1']['output'];
     };
+    readonly File: {
+      readonly createdAt: CodecTypes['pg/timestamptz-string@1']['output'];
+      readonly id: CodecTypes['pg/text@1']['output'];
+      readonly meetingId: CodecTypes['pg/text@1']['output'];
+      readonly mimeType: CodecTypes['pg/text@1']['output'];
+      readonly originalName: CodecTypes['pg/text@1']['output'];
+      readonly size: CodecTypes['pg/int4@1']['output'];
+      readonly storedName: CodecTypes['pg/text@1']['output'];
+      readonly uploaderId: CodecTypes['pg/text@1']['output'];
+    };
     readonly Meeting: {
       readonly createdAt: CodecTypes['pg/timestamptz-string@1']['output'];
       readonly hostId: CodecTypes['pg/text@1']['output'];
@@ -374,6 +404,16 @@ export type StorageColumnInputTypes = {
       readonly id: CodecTypes['pg/text@1']['input'];
       readonly joinedAt: CodecTypes['pg/timestamptz-string@1']['input'];
       readonly userId: CodecTypes['pg/text@1']['input'];
+    };
+    readonly File: {
+      readonly createdAt: CodecTypes['pg/timestamptz-string@1']['input'];
+      readonly id: CodecTypes['pg/text@1']['input'];
+      readonly meetingId: CodecTypes['pg/text@1']['input'];
+      readonly mimeType: CodecTypes['pg/text@1']['input'];
+      readonly originalName: CodecTypes['pg/text@1']['input'];
+      readonly size: CodecTypes['pg/int4@1']['input'];
+      readonly storedName: CodecTypes['pg/text@1']['input'];
+      readonly uploaderId: CodecTypes['pg/text@1']['input'];
     };
     readonly Meeting: {
       readonly createdAt: CodecTypes['pg/timestamptz-string@1']['input'];
@@ -419,14 +459,28 @@ export namespace Models {
     user: public_User;
     readonly [RelationKeys]?: 'conversation' | 'user';
   };
+  export type public_File = {
+    createdAt: CodecTypes['pg/timestamptz-string@1']['output'];
+    id: CodecTypes['pg/text@1']['output'];
+    meetingId: CodecTypes['pg/text@1']['output'];
+    mimeType: CodecTypes['pg/text@1']['output'];
+    originalName: CodecTypes['pg/text@1']['output'];
+    size: CodecTypes['pg/int4@1']['output'];
+    storedName: CodecTypes['pg/text@1']['output'];
+    uploaderId: CodecTypes['pg/text@1']['output'];
+    meeting: public_Meeting;
+    uploader: public_User;
+    readonly [RelationKeys]?: 'meeting' | 'uploader';
+  };
   export type public_Meeting = {
     createdAt: CodecTypes['pg/timestamptz-string@1']['output'];
     hostId: CodecTypes['pg/text@1']['output'];
     id: CodecTypes['pg/text@1']['output'];
     title: CodecTypes['pg/text@1']['output'];
     updatedAt: CodecTypes['pg/timestamptz-string@1']['output'];
+    files: public_File[];
     host: public_User;
-    readonly [RelationKeys]?: 'host';
+    readonly [RelationKeys]?: 'files' | 'host';
   };
   export type public_Message = {
     content: CodecTypes['pg/text@1']['output'];
@@ -447,10 +501,11 @@ export namespace Models {
     passwordHash: CodecTypes['pg/text@1']['output'];
     updatedAt: CodecTypes['pg/timestamptz-string@1']['output'];
     conversations: public_ConversationMember[];
+    files: public_File[];
     meetings: public_Meeting[];
     memberships: public_ConversationMember[];
     messages: public_Message[];
-    readonly [RelationKeys]?: 'conversations' | 'meetings' | 'memberships' | 'messages';
+    readonly [RelationKeys]?: 'conversations' | 'files' | 'meetings' | 'memberships' | 'messages';
   };
 }
 
@@ -458,6 +513,7 @@ export declare const models: {
   public: {
     Conversation: Models.public_Conversation;
     ConversationMember: Models.public_ConversationMember;
+    File: Models.public_File;
     Meeting: Models.public_Meeting;
     Message: Models.public_Message;
     User: Models.public_User;
@@ -565,6 +621,99 @@ type ContractBase = Omit<
                     readonly namespaceId: 'public' & NamespaceId;
                     readonly tableName: 'ConversationMember';
                     readonly columns: readonly ['userId'];
+                  };
+                  readonly target: {
+                    readonly namespaceId: 'public' & NamespaceId;
+                    readonly tableName: 'User';
+                    readonly columns: readonly ['id'];
+                  };
+                },
+              ];
+            };
+            readonly File: {
+              columns: {
+                readonly createdAt: {
+                  readonly nativeType: 'timestamptz';
+                  readonly codecId: 'pg/timestamptz-string@1';
+                  readonly nullable: false;
+                  readonly default: { readonly kind: 'function'; readonly expression: 'now()' };
+                };
+                readonly id: {
+                  readonly nativeType: 'text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: false;
+                };
+                readonly meetingId: {
+                  readonly nativeType: 'text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: false;
+                };
+                readonly mimeType: {
+                  readonly nativeType: 'text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: false;
+                };
+                readonly originalName: {
+                  readonly nativeType: 'text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: false;
+                };
+                readonly size: {
+                  readonly nativeType: 'int4';
+                  readonly codecId: 'pg/int4@1';
+                  readonly nullable: false;
+                };
+                readonly storedName: {
+                  readonly nativeType: 'text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: false;
+                };
+                readonly uploaderId: {
+                  readonly nativeType: 'text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: false;
+                };
+              };
+              primaryKey: { readonly columns: readonly ['id'] };
+              uniques: readonly [];
+              indexes: readonly [
+                {
+                  readonly name: 'File_meetingId_createdAt_idx_59cb58d2';
+                  readonly prefix: 'File_meetingId_createdAt_idx';
+                  readonly columns: readonly ['meetingId', 'createdAt'];
+                  readonly unique: false;
+                },
+                {
+                  readonly name: 'File_meetingId_idx_ebb79f08';
+                  readonly prefix: 'File_meetingId_idx';
+                  readonly columns: readonly ['meetingId'];
+                  readonly unique: false;
+                },
+                {
+                  readonly name: 'File_uploaderId_idx_debae170';
+                  readonly prefix: 'File_uploaderId_idx';
+                  readonly columns: readonly ['uploaderId'];
+                  readonly unique: false;
+                },
+              ];
+              foreignKeys: readonly [
+                {
+                  readonly source: {
+                    readonly namespaceId: 'public' & NamespaceId;
+                    readonly tableName: 'File';
+                    readonly columns: readonly ['meetingId'];
+                  };
+                  readonly target: {
+                    readonly namespaceId: 'public' & NamespaceId;
+                    readonly tableName: 'Meeting';
+                    readonly columns: readonly ['id'];
+                  };
+                },
+                {
+                  readonly source: {
+                    readonly namespaceId: 'public' & NamespaceId;
+                    readonly tableName: 'File';
+                    readonly columns: readonly ['uploaderId'];
                   };
                   readonly target: {
                     readonly namespaceId: 'public' & NamespaceId;
@@ -771,6 +920,7 @@ type ContractBase = Omit<
       readonly namespace: 'public' & NamespaceId;
       readonly model: 'ConversationMember';
     };
+    readonly File: { readonly namespace: 'public' & NamespaceId; readonly model: 'File' };
     readonly Meeting: { readonly namespace: 'public' & NamespaceId; readonly model: 'Meeting' };
     readonly Message: { readonly namespace: 'public' & NamespaceId; readonly model: 'Message' };
     readonly User: { readonly namespace: 'public' & NamespaceId; readonly model: 'User' };
@@ -890,6 +1040,82 @@ type ContractBase = Omit<
               };
             };
           };
+          readonly File: {
+            readonly fields: {
+              readonly createdAt: {
+                readonly nullable: false;
+                readonly type: {
+                  readonly kind: 'scalar';
+                  readonly codecId: 'pg/timestamptz-string@1';
+                };
+              };
+              readonly id: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+              readonly meetingId: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+              readonly mimeType: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+              readonly originalName: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+              readonly size: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/int4@1' };
+              };
+              readonly storedName: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+              readonly uploaderId: {
+                readonly nullable: false;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
+            };
+            readonly relations: {
+              readonly meeting: {
+                readonly to: {
+                  readonly namespace: 'public' & NamespaceId;
+                  readonly model: 'Meeting';
+                };
+                readonly cardinality: 'N:1';
+                readonly nullable: false;
+                readonly on: {
+                  readonly localFields: readonly ['meetingId'];
+                  readonly targetFields: readonly ['id'];
+                };
+              };
+              readonly uploader: {
+                readonly to: { readonly namespace: 'public' & NamespaceId; readonly model: 'User' };
+                readonly cardinality: 'N:1';
+                readonly nullable: false;
+                readonly on: {
+                  readonly localFields: readonly ['uploaderId'];
+                  readonly targetFields: readonly ['id'];
+                };
+              };
+            };
+            readonly storage: {
+              readonly table: 'File';
+              readonly namespaceId: 'public';
+              readonly fields: {
+                readonly createdAt: { readonly column: 'createdAt' };
+                readonly id: { readonly column: 'id' };
+                readonly meetingId: { readonly column: 'meetingId' };
+                readonly mimeType: { readonly column: 'mimeType' };
+                readonly originalName: { readonly column: 'originalName' };
+                readonly size: { readonly column: 'size' };
+                readonly storedName: { readonly column: 'storedName' };
+                readonly uploaderId: { readonly column: 'uploaderId' };
+              };
+            };
+          };
           readonly Meeting: {
             readonly fields: {
               readonly createdAt: {
@@ -920,6 +1146,14 @@ type ContractBase = Omit<
               };
             };
             readonly relations: {
+              readonly files: {
+                readonly to: { readonly namespace: 'public' & NamespaceId; readonly model: 'File' };
+                readonly cardinality: '1:N';
+                readonly on: {
+                  readonly localFields: readonly ['id'];
+                  readonly targetFields: readonly ['meetingId'];
+                };
+              };
               readonly host: {
                 readonly to: { readonly namespace: 'public' & NamespaceId; readonly model: 'User' };
                 readonly cardinality: 'N:1';
@@ -1052,6 +1286,14 @@ type ContractBase = Omit<
                   readonly targetFields: readonly ['userId'];
                 };
               };
+              readonly files: {
+                readonly to: { readonly namespace: 'public' & NamespaceId; readonly model: 'File' };
+                readonly cardinality: '1:N';
+                readonly on: {
+                  readonly localFields: readonly ['id'];
+                  readonly targetFields: readonly ['uploaderId'];
+                };
+              };
               readonly meetings: {
                 readonly to: {
                   readonly namespace: 'public' & NamespaceId;
@@ -1141,6 +1383,14 @@ type ContractBase = Omit<
           readonly onCreate: { readonly id: 'uuidv4'; readonly kind: 'generator' };
           readonly ref: {
             readonly entry: 'ConversationMember';
+            readonly field: 'id';
+            readonly namespace: 'public';
+          };
+        },
+        {
+          readonly onCreate: { readonly id: 'uuidv4'; readonly kind: 'generator' };
+          readonly ref: {
+            readonly entry: 'File';
             readonly field: 'id';
             readonly namespace: 'public';
           };

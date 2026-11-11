@@ -14,6 +14,7 @@ namespace public {
     memberships   ConversationMember[]
     messages      Message[]
     meetings      Meeting[]
+    files         File[]
 
     @@unique([email])
   }
@@ -59,8 +60,25 @@ namespace public {
     createdAt TimestamptzString @default(now())
     updatedAt TimestamptzString @default(now())
 
-    host User @relation(fields: [hostId], references: [id])
+    host  User   @relation(fields: [hostId], references: [id])
+    files File[]
 
     @@index([hostId])
+  }
+
+  model File {
+    id           String            @id @default(uuid())
+    meetingId    String
+    uploaderId   String
+    originalName String
+    storedName   String
+    mimeType     String
+    size         Int
+    createdAt    TimestamptzString @default(now())
+
+    meeting  Meeting @relation(fields: [meetingId], references: [id])
+    uploader User    @relation(fields: [uploaderId], references: [id])
+
+    @@index([meetingId, createdAt])
   }
 }

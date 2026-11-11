@@ -1,0 +1,242 @@
+[
+  {
+    "id": "table.File",
+    "label": "Create table \"File\"",
+    "summary": "Creates table \"File\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "table",
+        "name": "File"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"File\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"File\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"File\"",
+        "sql": "CREATE TABLE \"public\".\"File\" (\n  \"createdAt\" timestamptz DEFAULT (now()) NOT NULL,\n  \"id\" text NOT NULL,\n  \"meetingId\" text NOT NULL,\n  \"mimeType\" text NOT NULL,\n  \"originalName\" text NOT NULL,\n  \"size\" int4 NOT NULL,\n  \"storedName\" text NOT NULL,\n  \"uploaderId\" text NOT NULL,\n  PRIMARY KEY (\"id\")\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"File\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"File\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.File.File_meetingId_createdAt_idx_59cb58d2",
+    "label": "Create index \"File_meetingId_createdAt_idx_59cb58d2\" on \"File\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "File_meetingId_createdAt_idx_59cb58d2",
+        "table": "File"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"File_meetingId_createdAt_idx_59cb58d2\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"File_meetingId_createdAt_idx_59cb58d2\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"File_meetingId_createdAt_idx_59cb58d2\"",
+        "sql": "CREATE INDEX \"File_meetingId_createdAt_idx_59cb58d2\" ON \"public\".\"File\" (\"meetingId\", \"createdAt\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"File_meetingId_createdAt_idx_59cb58d2\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"File_meetingId_createdAt_idx_59cb58d2\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.File.File_meetingId_idx_ebb79f08",
+    "label": "Create index \"File_meetingId_idx_ebb79f08\" on \"File\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "File_meetingId_idx_ebb79f08",
+        "table": "File"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"File_meetingId_idx_ebb79f08\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"File_meetingId_idx_ebb79f08\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"File_meetingId_idx_ebb79f08\"",
+        "sql": "CREATE INDEX \"File_meetingId_idx_ebb79f08\" ON \"public\".\"File\" (\"meetingId\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"File_meetingId_idx_ebb79f08\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"File_meetingId_idx_ebb79f08\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.File.File_uploaderId_idx_debae170",
+    "label": "Create index \"File_uploaderId_idx_debae170\" on \"File\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "File_uploaderId_idx_debae170",
+        "table": "File"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"File_uploaderId_idx_debae170\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"File_uploaderId_idx_debae170\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"File_uploaderId_idx_debae170\"",
+        "sql": "CREATE INDEX \"File_uploaderId_idx_debae170\" ON \"public\".\"File\" (\"uploaderId\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"File_uploaderId_idx_debae170\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"File_uploaderId_idx_debae170\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.File.File_meetingId_fkey",
+    "label": "Add foreign key \"File_meetingId_fkey\" on \"File\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "File_meetingId_fkey",
+        "table": "File"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"File_meetingId_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "File_meetingId_fkey",
+          "public",
+          "\"public\".\"File\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"File_meetingId_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"File\"\nADD CONSTRAINT \"File_meetingId_fkey\"\nFOREIGN KEY (\"meetingId\")\nREFERENCES \"public\".\"Meeting\" (\"id\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"File_meetingId_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "File_meetingId_fkey",
+          "public",
+          "\"public\".\"File\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.File.File_uploaderId_fkey",
+    "label": "Add foreign key \"File_uploaderId_fkey\" on \"File\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "File_uploaderId_fkey",
+        "table": "File"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"File_uploaderId_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "File_uploaderId_fkey",
+          "public",
+          "\"public\".\"File\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"File_uploaderId_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"File\"\nADD CONSTRAINT \"File_uploaderId_fkey\"\nFOREIGN KEY (\"uploaderId\")\nREFERENCES \"public\".\"User\" (\"id\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"File_uploaderId_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "File_uploaderId_fkey",
+          "public",
+          "\"public\".\"File\""
+        ]
+      }
+    ]
+  }
+]

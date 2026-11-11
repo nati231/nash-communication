@@ -12,6 +12,10 @@
       "model": "ConversationMember",
       "namespace": "public"
     },
+    "File": {
+      "model": "File",
+      "namespace": "public"
+    },
     "Meeting": {
       "model": "Meeting",
       "namespace": "public"
@@ -185,6 +189,130 @@
               "table": "ConversationMember"
             }
           },
+          "File": {
+            "fields": {
+              "createdAt": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/timestamptz-string@1",
+                  "kind": "scalar"
+                }
+              },
+              "id": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "meetingId": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "mimeType": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "originalName": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "size": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/int4@1",
+                  "kind": "scalar"
+                }
+              },
+              "storedName": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "uploaderId": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              }
+            },
+            "relations": {
+              "meeting": {
+                "cardinality": "N:1",
+                "nullable": false,
+                "on": {
+                  "localFields": [
+                    "meetingId"
+                  ],
+                  "targetFields": [
+                    "id"
+                  ]
+                },
+                "to": {
+                  "model": "Meeting",
+                  "namespace": "public"
+                }
+              },
+              "uploader": {
+                "cardinality": "N:1",
+                "nullable": false,
+                "on": {
+                  "localFields": [
+                    "uploaderId"
+                  ],
+                  "targetFields": [
+                    "id"
+                  ]
+                },
+                "to": {
+                  "model": "User",
+                  "namespace": "public"
+                }
+              }
+            },
+            "storage": {
+              "fields": {
+                "createdAt": {
+                  "column": "createdAt"
+                },
+                "id": {
+                  "column": "id"
+                },
+                "meetingId": {
+                  "column": "meetingId"
+                },
+                "mimeType": {
+                  "column": "mimeType"
+                },
+                "originalName": {
+                  "column": "originalName"
+                },
+                "size": {
+                  "column": "size"
+                },
+                "storedName": {
+                  "column": "storedName"
+                },
+                "uploaderId": {
+                  "column": "uploaderId"
+                }
+              },
+              "namespaceId": "public",
+              "table": "File"
+            }
+          },
           "Meeting": {
             "fields": {
               "createdAt": {
@@ -224,6 +352,21 @@
               }
             },
             "relations": {
+              "files": {
+                "cardinality": "1:N",
+                "on": {
+                  "localFields": [
+                    "id"
+                  ],
+                  "targetFields": [
+                    "meetingId"
+                  ]
+                },
+                "to": {
+                  "model": "File",
+                  "namespace": "public"
+                }
+              },
               "host": {
                 "cardinality": "N:1",
                 "nullable": false,
@@ -422,6 +565,21 @@
                 },
                 "to": {
                   "model": "ConversationMember",
+                  "namespace": "public"
+                }
+              },
+              "files": {
+                "cardinality": "1:N",
+                "on": {
+                  "localFields": [
+                    "id"
+                  ],
+                  "targetFields": [
+                    "uploaderId"
+                  ]
+                },
+                "to": {
+                  "model": "File",
                   "namespace": "public"
                 }
               },
@@ -635,6 +793,121 @@
                   ]
                 }
               ]
+            },
+            "File": {
+              "columns": {
+                "createdAt": {
+                  "codecId": "pg/timestamptz-string@1",
+                  "default": {
+                    "expression": "now()",
+                    "kind": "function"
+                  },
+                  "nativeType": "timestamptz",
+                  "nullable": false
+                },
+                "id": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": false
+                },
+                "meetingId": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": false
+                },
+                "mimeType": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": false
+                },
+                "originalName": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": false
+                },
+                "size": {
+                  "codecId": "pg/int4@1",
+                  "nativeType": "int4",
+                  "nullable": false
+                },
+                "storedName": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": false
+                },
+                "uploaderId": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": false
+                }
+              },
+              "foreignKeys": [
+                {
+                  "source": {
+                    "columns": [
+                      "meetingId"
+                    ],
+                    "namespaceId": "public",
+                    "tableName": "File"
+                  },
+                  "target": {
+                    "columns": [
+                      "id"
+                    ],
+                    "namespaceId": "public",
+                    "tableName": "Meeting"
+                  }
+                },
+                {
+                  "source": {
+                    "columns": [
+                      "uploaderId"
+                    ],
+                    "namespaceId": "public",
+                    "tableName": "File"
+                  },
+                  "target": {
+                    "columns": [
+                      "id"
+                    ],
+                    "namespaceId": "public",
+                    "tableName": "User"
+                  }
+                }
+              ],
+              "indexes": [
+                {
+                  "columns": [
+                    "meetingId",
+                    "createdAt"
+                  ],
+                  "name": "File_meetingId_createdAt_idx_59cb58d2",
+                  "prefix": "File_meetingId_createdAt_idx",
+                  "unique": false
+                },
+                {
+                  "columns": [
+                    "meetingId"
+                  ],
+                  "name": "File_meetingId_idx_ebb79f08",
+                  "prefix": "File_meetingId_idx",
+                  "unique": false
+                },
+                {
+                  "columns": [
+                    "uploaderId"
+                  ],
+                  "name": "File_uploaderId_idx_debae170",
+                  "prefix": "File_uploaderId_idx",
+                  "unique": false
+                }
+              ],
+              "primaryKey": {
+                "columns": [
+                  "id"
+                ]
+              },
+              "uniques": []
             },
             "Meeting": {
               "columns": {
@@ -874,10 +1147,10 @@
         "kind": "postgres-schema"
       }
     },
-    "storageHash": "65b7c2414df7b1a8d06ed70c67ed7b9d4661823261539d0cd4c04fffae19c2ab"
+    "storageHash": "8accdfe9233a3fe67d414d5546ddec60061559f8b08f450425134d0fdf6e9268"
   },
   "execution": {
-    "executionHash": "2dd21bb7ab0791c18403c5135efa47100efbec01756de7e6606c7ee01769eeb1",
+    "executionHash": "8558a6f1c5e691fa9b547b9dbb43522d1189bebbaf82a8a89f3f388b98179935",
     "mutations": {
       "defaults": [
         {
@@ -898,6 +1171,17 @@
           },
           "ref": {
             "entry": "ConversationMember",
+            "field": "id",
+            "namespace": "public"
+          }
+        },
+        {
+          "onCreate": {
+            "id": "uuidv4",
+            "kind": "generator"
+          },
+          "ref": {
+            "entry": "File",
             "field": "id",
             "namespace": "public"
           }
