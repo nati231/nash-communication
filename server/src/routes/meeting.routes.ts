@@ -1,8 +1,11 @@
 import { Router } from "express";
 import { randomUUID } from "node:crypto";
 import { prisma } from "../config/prisma.js";
+import fileRoutes from "./file.routes.js";
 
 const router = Router();
+
+router.use("/:meetingId/files", fileRoutes);
 
 router.post("/", async (req, res) => {
   try {

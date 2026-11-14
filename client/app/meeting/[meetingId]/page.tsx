@@ -21,6 +21,16 @@ type ChatMessage = {
   createdAt: string;
 };
 
+type SharedFile = {
+  id: string;
+  meetingId: string;
+  uploaderId: string;
+  originalName: string;
+  mimeType: string;
+  size: number;
+  createdAt: string;
+};
+
 type Ack = {
   success: boolean;
   error?: string;
@@ -40,6 +50,27 @@ type Signal = {
 const API_URL = (
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"
 ).replace(/\/+$/, "");
+
+// Same limits as the server. The server checks them again, so these only
+// give a quicker, friendlier message.
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
+const ALLOWED_EXTENSIONS = [
+  ".jpg",
+  ".jpeg",
+  ".png",
+  ".gif",
+  ".webp",
+  ".pdf",
+  ".txt",
+  ".csv",
+  ".doc",
+  ".docx",
+  ".xls",
+  ".xlsx",
+  ".ppt",
+  ".pptx",
+  ".zip",
+];
 
 // Optional TURN relay, used when two networks cannot connect directly.
 // Set these three values in client/.env.local to turn it on.
@@ -106,6 +137,26 @@ function getName() {
   } catch {
     return localStorage.getItem("name") || "Guest";
   }
+}
+
+function getUserId() {
+  if (typeof window === "undefined") return "";
+  try {
+    const user = JSON.parse(
+      localStorage.getItem("nash_user") ||
+        localStorage.getItem("user") ||
+        "{}"
+    );
+    return String(user.id ?? user.userId ?? "");
+  } catch {
+    return "";
+  }
+}
+
+function formatSize(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 const sleep = (ms: number) =>
@@ -218,6 +269,7 @@ export default function MeetingPage() {
   const localStreamRef = useRef<MediaStream | null>(null);
   const screenStreamRef = useRef<MediaStream | null>(null);
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const peersRef = useRef(new Map<string, RTCPeerConnection>());
   const remoteStreamsRef = useRef(new Map<string, MediaStream>());
   const pendingIceRef = useRef(new Map<string, RTCIceCandidateInit[]>());
@@ -238,6 +290,9 @@ export default function MeetingPage() {
   const [cameraOn, setCameraOn] = useState(false);
   const [micOn, setMicOn] = useState(false);
   const [sharing, setSharing] = useState(false);
+  const [files, setFiles] = useState<SharedFile[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [downloadingId, setDownloadingId] = useState("");
   const [error, setError] = useState("");
   const [status, setStatus] = useState("Connecting…");
 
@@ -523,6 +578,143 @@ export default function MeetingPage() {
     }
   }, [meetingId, replaceOutgoingVideo, stopScreenShare]);
 
+  // Loads the list of files shared in this meeting.
+  const fetchFiles = useCallback(async () => {
+    const token = getToken();
+    if (!token || !meetingId) return;
+
+    try {
+      const response = await fetch(
+        `${API_URL}/api/meetings/${encodeURIComponent(meetingId)}/files`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        setError(data?.message || "Could not load the shared files.");
+        return;
+      }
+
+      setFiles(Array.isArray(data?.files) ? data.files : []);
+    } catch {
+      setError("Could not reach the server to load the shared files.");
+    }
+  }, [meetingId]);
+
+  const uploadFile = useCallback(
+    async (file: File) => {
+      const token = getToken();
+      if (!token) {
+        setError("Please sign in again to share files.");
+        return;
+      }
+
+      const dot = file.name.lastIndexOf(".");
+      const extension = dot >= 0 ? file.name.slice(dot).toLowerCase() : "";
+
+      if (!ALLOWED_EXTENSIONS.includes(extension)) {
+        setError(
+          "This file type isn't allowed. You can share images, PDF, Word, Excel, PowerPoint, text, CSV and zip files."
+        );
+        return;
+      }
+
+      if (file.size === 0) {
+        setError("That file is empty.");
+        return;
+      }
+
+      if (file.size > MAX_FILE_SIZE) {
+        setError(
+          `That file is ${formatSize(file.size)}. The limit is ${formatSize(MAX_FILE_SIZE)}.`
+        );
+        return;
+      }
+
+      setUploading(true);
+      setError("");
+
+      try {
+        const form = new FormData();
+        form.append("file", file);
+
+        const response = await fetch(
+          `${API_URL}/api/meetings/${encodeURIComponent(meetingId)}/files`,
+          {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token}` },
+            body: form,
+          }
+        );
+
+        const data = await response.json().catch(() => null);
+
+        if (!response.ok) {
+          setError(data?.message || `Upload failed (${response.status}).`);
+          return;
+        }
+
+        // Tell everyone else to reload their list, then reload ours.
+        socketRef.current?.emit("meeting:files-changed", { meetingId });
+        await fetchFiles();
+      } catch {
+        setError("Could not reach the server to upload the file.");
+      } finally {
+        setUploading(false);
+      }
+    },
+    [meetingId, fetchFiles]
+  );
+
+  const downloadFile = useCallback(
+    async (file: SharedFile) => {
+      const token = getToken();
+      if (!token) {
+        setError("Please sign in again to download files.");
+        return;
+      }
+
+      setDownloadingId(file.id);
+      setError("");
+
+      try {
+        const response = await fetch(
+          `${API_URL}/api/meetings/${encodeURIComponent(meetingId)}/files/${encodeURIComponent(file.id)}`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+
+        if (!response.ok) {
+          const data = await response.json().catch(() => null);
+          setError(data?.message || `Download failed (${response.status}).`);
+          return;
+        }
+
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = file.originalName;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      } catch {
+        setError("Could not reach the server to download the file.");
+      } finally {
+        setDownloadingId("");
+      }
+    },
+    [meetingId]
+  );
+
+  const onFileChosen = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    // Reset so choosing the same file again still triggers this handler.
+    event.target.value = "";
+    if (file) void uploadFile(file);
+  };
+
   // Keep the local preview attached to the local stream.
   useEffect(() => {
     if (localVideoRef.current) {
@@ -589,6 +781,9 @@ export default function MeetingPage() {
           for (const participant of others) {
             void sendOffer(participant.socketId);
           }
+
+          // Load the files already shared in this meeting.
+          void fetchFiles();
         }
       );
     };
@@ -628,6 +823,11 @@ export default function MeetingPage() {
         sharing: Boolean(data.sharing),
       });
       refreshParticipants();
+    };
+
+    const onFilesChanged = (data: { meetingId: string }) => {
+      if (data?.meetingId !== meetingId) return;
+      void fetchFiles();
     };
 
     const onOffer = async (data: Signal) => {
@@ -753,6 +953,7 @@ export default function MeetingPage() {
       socket.on("meeting:participant-joined", onParticipantJoined);
       socket.on("meeting:participant-left", onParticipantLeft);
       socket.on("meeting:screen-share", onScreenShare);
+      socket.on("meeting:files-changed", onFilesChanged);
       socket.on("meeting:webrtc:offer", onOffer);
       socket.on("meeting:webrtc:answer", onAnswer);
       socket.on("meeting:webrtc:ice", onIce);
@@ -773,6 +974,7 @@ export default function MeetingPage() {
         socket.off("meeting:participant-joined", onParticipantJoined);
         socket.off("meeting:participant-left", onParticipantLeft);
         socket.off("meeting:screen-share", onScreenShare);
+        socket.off("meeting:files-changed", onFilesChanged);
         socket.off("meeting:webrtc:offer", onOffer);
         socket.off("meeting:webrtc:answer", onAnswer);
         socket.off("meeting:webrtc:ice", onIce);
@@ -800,6 +1002,7 @@ export default function MeetingPage() {
     closePeer,
     closeAllPeers,
     createPeer,
+    fetchFiles,
     flushIce,
     refreshParticipants,
     sendOffer,
@@ -883,6 +1086,16 @@ export default function MeetingPage() {
   const toggleScreenShare = () => {
     if (sharing) void stopScreenShare();
     else void startScreenShare();
+  };
+
+  const myUserId = getUserId();
+
+  const uploaderLabel = (file: SharedFile) => {
+    if (myUserId && file.uploaderId === myUserId) return "You";
+    return (
+      participants.find((person) => person.userId === file.uploaderId)?.name ||
+      "Another participant"
+    );
   };
 
   return (
@@ -990,6 +1203,69 @@ export default function MeetingPage() {
               You’re sharing your screen. Everyone in the meeting can see it.
             </p>
           )}
+
+          <div className="mt-6 rounded-xl bg-slate-900 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold">Shared files</h2>
+                <p className="text-xs text-slate-500">
+                  Images, PDF, Word, Excel, PowerPoint, text, CSV and zip. Up
+                  to {formatSize(MAX_FILE_SIZE)} each.
+                </p>
+              </div>
+
+              <div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept={ALLOWED_EXTENSIONS.join(",")}
+                  onChange={onFileChosen}
+                  className="hidden"
+                />
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={!joined || uploading}
+                  className="rounded-lg bg-blue-600 px-4 py-2 text-sm disabled:opacity-50"
+                >
+                  {uploading ? "Uploading…" : "Upload file"}
+                </button>
+              </div>
+            </div>
+
+            {files.length === 0 ? (
+              <p className="mt-4 text-sm text-slate-400">
+                No files have been shared yet.
+              </p>
+            ) : (
+              <ul className="mt-4 space-y-2">
+                {files.map((file) => (
+                  <li
+                    key={file.id}
+                    className="flex items-center justify-between gap-3 rounded-lg bg-slate-800 p-3"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">
+                        {file.originalName}
+                      </p>
+                      <p className="text-xs text-slate-400">
+                        {formatSize(file.size)} · {uploaderLabel(file)} ·{" "}
+                        {new Date(file.createdAt).toLocaleTimeString()}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => void downloadFile(file)}
+                      disabled={downloadingId === file.id}
+                      className="shrink-0 rounded-lg bg-slate-700 px-3 py-1.5 text-sm disabled:opacity-50"
+                    >
+                      {downloadingId === file.id ? "Saving…" : "Download"}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </section>
 
         <aside className="flex min-h-[420px] flex-col rounded-xl bg-slate-900 p-4">

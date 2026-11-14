@@ -50,6 +50,10 @@ type ScreenSharePayload = {
   sharing: boolean;
 };
 
+type FilesChangedPayload = {
+  meetingId?: string;
+};
+
 type SignalPayload = {
   meetingId: string;
   to: string;
@@ -75,8 +79,9 @@ function isNonEmptyString(value: unknown): value is string {
 
 /**
  * Single authoritative implementation of meeting join/leave, chat, screen-share
- * notices and WebRTC signaling relay. registerSocketHandlers.ts calls this once
- * per authenticated socket. Do not register meeting:join / meeting:leave anywhere else.
+ * notices, file-change notices and WebRTC signaling relay.
+ * registerSocketHandlers.ts calls this once per authenticated socket.
+ * Do not register meeting:join / meeting:leave anywhere else.
  */
 export function registerMeetingChatHandlers(
   io: Server,
@@ -240,6 +245,29 @@ export function registerMeetingChatHandlers(
       userId: user.userId,
       name: participant.name,
       sharing: payload.sharing,
+    });
+  });
+
+  // ---------------------------------------------------------------
+  // FILES CHANGED NOTICE
+  // Client: socket.emit("meeting:files-changed", { meetingId })
+  // Everyone else in the room is told to reload the file list.
+  // No file details travel through this event: each browser fetches the list
+  // from the login-protected HTTP endpoint, so nothing can be faked here.
+  // ---------------------------------------------------------------
+  socket.on("meeting:files-changed", (payload: FilesChangedPayload) => {
+    if (!isNonEmptyString(payload?.meetingId)) return;
+
+    const meetingId = payload.meetingId.trim();
+    const participant = joinedMeetings.get(meetingId);
+
+    // Only someone who has joined this meeting can send the notice.
+    if (!participant) return;
+
+    socket.to(meetingRoom(meetingId)).emit("meeting:files-changed", {
+      meetingId,
+      userId: user.userId,
+      name: participant.name,
     });
   });
 
