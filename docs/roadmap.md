@@ -73,9 +73,15 @@ Create persistent application data.
 - [x] Create User model
 - [x] Create Meeting model
 - [ ] Create MeetingParticipant model
-- [ ] Create File model
-- [ ] Run migrations
+- [x] Create File model
+- [x] Run migrations
 - [ ] Test database operations
+
+Notes: Prisma 8 workflow used here: edit prisma/contract.prisma, run
+`npx prisma contract emit`, then `npx prisma migration plan --name <name>
+--from <hash of the database's current version>`, check that the plan lists only
+the intended changes, then `npx prisma db migrate`. The default origin in
+migrations/app/refs/db.json is out of date, so always pass --from.
 
 ---
 
@@ -217,15 +223,23 @@ Allow meeting participants to securely share files.
 
 ### Tasks
 
-- [ ] Design file upload flow
-- [ ] Create upload endpoint
-- [ ] Validate file types
-- [ ] Validate file sizes
-- [ ] Store file metadata
-- [ ] Implement download endpoint
-- [ ] Add authorization checks
-- [ ] Create file UI
-- [ ] Test unauthorized access
+- [x] Design file upload flow
+- [x] Create upload endpoint
+- [x] Validate file types
+- [x] Validate file sizes
+- [x] Store file metadata
+- [x] Implement download endpoint
+- [x] Add authorization checks
+- [x] Create file UI
+- [x] Test unauthorized access
+
+Notes: uploads need a login, the meeting must exist, files are limited to
+10 MB and a fixed list of types, and they are stored under random names in
+server/uploads. Known gaps, for the Security phase: any logged-in person who
+knows a meeting's ID can list and download its files, because the database does
+not record who joined a meeting; nothing deletes files when a meeting ends; and
+files live on local disk instead of cloud storage. Only the "no login" case was
+tested through the browser; a request with a wrong meeting ID was not tested.
 
 ---
 
@@ -274,6 +288,10 @@ Harden Nash against common security problems.
 - [ ] Review database security
 - [ ] Review environment variables
 - [ ] Review HTTPS requirements
+
+Notes: known item from earlier work: POST /api/meetings does not check the
+login and trusts the hostId sent by the browser, so someone could create a
+meeting in another person's name.
 
 ---
 
