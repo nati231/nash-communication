@@ -252,17 +252,26 @@ Create a real-time shared whiteboard.
 ### Tasks
 
 - [ ] Learn HTML Canvas
-- [ ] Create drawing surface
-- [ ] Implement pointer drawing
-- [ ] Implement eraser
-- [ ] Implement colors
-- [ ] Implement line width
-- [ ] Implement shapes
-- [ ] Implement text
-- [ ] Send drawing events through Socket.IO
-- [ ] Synchronize participants
-- [ ] Add undo/redo
-- [ ] Add clear board
+- [x] Create drawing surface
+- [x] Implement pointer drawing
+- [x] Implement eraser
+- [x] Implement colors
+- [x] Implement line width
+- [x] Implement shapes
+- [x] Implement text
+- [x] Send drawing events through Socket.IO
+- [x] Synchronize participants
+- [x] Add undo/redo
+- [x] Add clear board
+
+Notes: the board lives in server memory only, so it is lost when the server
+restarts or when the last person leaves the meeting. Anyone in the meeting can
+draw and clear the board. Undo and redo only affect your own drawings, and a
+redone drawing goes on top of everything else. Text is a single line of up to
+200 characters, and placed shapes and text cannot be moved or edited, only
+undone. Limits on the server: 500 items per board, 2,000 points per stroke and
+a cap on drawing events per second. Tested with two browser windows on one
+computer; three or more people and touch screens were not tested.
 
 ---
 
@@ -291,7 +300,9 @@ Harden Nash against common security problems.
 
 Notes: known item from earlier work: POST /api/meetings does not check the
 login and trusts the hostId sent by the browser, so someone could create a
-meeting in another person's name.
+meeting in another person's name. The whiteboard events already validate their
+input on the server, but the other socket events (chat, screen share, signaling)
+have only basic checks and need a proper review.
 
 ---
 
