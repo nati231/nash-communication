@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { io, type Socket } from "socket.io-client";
 
+import { Whiteboard } from "@/components/meeting/Whiteboard";
+
 type Participant = {
   socketId: string;
   userId: string;
@@ -290,6 +292,7 @@ export default function MeetingPage() {
   const [cameraOn, setCameraOn] = useState(false);
   const [micOn, setMicOn] = useState(false);
   const [sharing, setSharing] = useState(false);
+  const [boardOpen, setBoardOpen] = useState(false);
   const [files, setFiles] = useState<SharedFile[]>([]);
   const [uploading, setUploading] = useState(false);
   const [downloadingId, setDownloadingId] = useState("");
@@ -1053,6 +1056,7 @@ export default function MeetingPage() {
     screenStreamRef.current = null;
     sharingRef.current = false;
     setSharing(false);
+    setBoardOpen(false);
 
     setJoined(false);
     setConnected(false);
@@ -1191,6 +1195,15 @@ export default function MeetingPage() {
               {sharing ? "Stop sharing" : "Share screen"}
             </button>
             <button
+              onClick={() => setBoardOpen((open) => !open)}
+              disabled={!joined}
+              className={`rounded-lg px-4 py-2 disabled:opacity-50 ${
+                boardOpen ? "bg-blue-700" : "bg-slate-800"
+              }`}
+            >
+              {boardOpen ? "Hide whiteboard" : "Whiteboard"}
+            </button>
+            <button
               onClick={leaveMeeting}
               className="rounded-lg bg-red-700 px-4 py-2"
             >
@@ -1202,6 +1215,15 @@ export default function MeetingPage() {
             <p className="mt-3 text-sm text-emerald-300">
               You’re sharing your screen. Everyone in the meeting can see it.
             </p>
+          )}
+
+          {boardOpen && joined && (
+            <Whiteboard
+              meetingId={meetingId}
+              socketRef={socketRef}
+              joined={joined}
+              onClose={() => setBoardOpen(false)}
+            />
           )}
 
           <div className="mt-6 rounded-xl bg-slate-900 p-4">
