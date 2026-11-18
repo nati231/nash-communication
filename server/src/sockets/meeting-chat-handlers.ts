@@ -1,6 +1,8 @@
 import type { Server, Socket } from "socket.io";
 import { randomUUID } from "node:crypto";
 
+import { prisma } from "../config/prisma.js";
+
 type AuthenticatedUser = {
   userId: string;
   email?: string;
@@ -366,47 +368,71 @@ export function registerMeetingChatHandlers(
   // ---------------------------------------------------------------
   // JOIN
   // Client: socket.emit("meeting:join", { meetingId, name }, ack)
+  //
+  // The meeting must exist in the database. The lookup is the only slow step;
+  // joining the room and listing its members still happen together with no
+  // waiting in between, so two people joining at the same time can never both
+  // miss each other.
   // ---------------------------------------------------------------
-  socket.on("meeting:join", (payload: MeetingJoinPayload, ack?: Ack) => {
-    const callback = typeof ack === "function" ? ack : undefined;
+  socket.on(
+    "meeting:join",
+    async (payload: MeetingJoinPayload, ack?: Ack) => {
+      const callback = typeof ack === "function" ? ack : undefined;
 
-    try {
-      if (
-        !isNonEmptyString(payload?.meetingId) ||
-        payload.meetingId.trim().length > MAX_MEETING_ID_LENGTH
-      ) {
-        callback?.({ success: false, error: "A valid meetingId is required." });
-        return;
-      }
+      try {
+        if (
+          !isNonEmptyString(payload?.meetingId) ||
+          payload.meetingId.trim().length > MAX_MEETING_ID_LENGTH
+        ) {
+          callback?.({
+            success: false,
+            error: "A valid meetingId is required.",
+          });
+          return;
+        }
 
-      const meetingId = payload.meetingId.trim();
-      const room = meetingRoom(meetingId);
-      const participant = buildParticipant(payload.name);
-      const alreadyJoined = joinedMeetings.has(meetingId);
+        const meetingId = payload.meetingId.trim();
 
-      joinedMeetings.set(meetingId, participant);
-
-      // Joining the room and listing its members happen synchronously
-      // (in-memory adapter), so two people joining at the same time can
-      // never both miss each other.
-      void socket.join(room);
-
-      const participants = listOtherParticipants(meetingId);
-
-      callback?.({ success: true, participants });
-
-      // A repeated join from the same socket must not be announced twice.
-      if (!alreadyJoined) {
-        socket.to(room).emit("meeting:participant-joined", {
-          meetingId,
-          participant,
+        const meeting = await prisma.orm.public.Meeting.first({
+          id: meetingId,
         });
+
+        if (!meeting) {
+          callback?.({
+            success: false,
+            error: "That meeting doesn't exist.",
+          });
+          return;
+        }
+
+        // The person may have disconnected while the meeting was being checked.
+        if (!socket.connected) return;
+
+        const room = meetingRoom(meetingId);
+        const participant = buildParticipant(payload.name);
+        const alreadyJoined = joinedMeetings.has(meetingId);
+
+        joinedMeetings.set(meetingId, participant);
+
+        void socket.join(room);
+
+        const participants = listOtherParticipants(meetingId);
+
+        callback?.({ success: true, participants });
+
+        // A repeated join from the same socket must not be announced twice.
+        if (!alreadyJoined) {
+          socket.to(room).emit("meeting:participant-joined", {
+            meetingId,
+            participant,
+          });
+        }
+      } catch (error) {
+        console.error("meeting:join failed:", error);
+        callback?.({ success: false, error: "Failed to join the meeting." });
       }
-    } catch (error) {
-      console.error("meeting:join failed:", error);
-      callback?.({ success: false, error: "Failed to join the meeting." });
-    }
-  });
+    },
+  );
 
   // ---------------------------------------------------------------
   // LEAVE
