@@ -11,11 +11,29 @@ if (!JWT_SECRET) {
   throw new Error("JWT_SECRET is not defined");
 }
 
+const BCRYPT_COST = 12;
+
+// Checked against when the email is unknown, so the time a login takes
+// doesn't reveal whether an account exists.
+const DUMMY_HASH = bcrypt.hashSync("nash-timing-placeholder", BCRYPT_COST);
+
+// A problem the person can be told about (wrong password, email already used).
+// Anything that is not an AuthError is an unexpected failure and is not shown.
+export class AuthError extends Error {
+  readonly status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "AuthError";
+    this.status = status;
+  }
+}
+
 export interface RegisterInput {
   name: string;
   email: string;
   password: string;
-  avatarUrl?: string;
+  avatarUrl?: string | undefined;
 }
 
 export interface LoginInput {
@@ -27,10 +45,10 @@ export async function registerUser(input: RegisterInput) {
   const existingUser = await getUserByEmail(input.email);
 
   if (existingUser) {
-    throw new Error("User with this email already exists");
+    throw new AuthError("User with this email already exists", 409);
   }
 
-  const passwordHash = await bcrypt.hash(input.password, 12);
+  const passwordHash = await bcrypt.hash(input.password, BCRYPT_COST);
 
   const user = await createUser({
     name: input.name,
@@ -53,7 +71,9 @@ export async function loginUser(input: LoginInput) {
   const user = await getUserByEmail(input.email);
 
   if (!user) {
-    throw new Error("Invalid email or password");
+    // Do the same amount of work as a real check, then refuse.
+    await bcrypt.compare(input.password, DUMMY_HASH);
+    throw new AuthError("Invalid email or password", 401);
   }
 
   const passwordValid = await bcrypt.compare(
@@ -62,7 +82,7 @@ export async function loginUser(input: LoginInput) {
   );
 
   if (!passwordValid) {
-    throw new Error("Invalid email or password");
+    throw new AuthError("Invalid email or password", 401);
   }
 
   const token = jwt.sign(
