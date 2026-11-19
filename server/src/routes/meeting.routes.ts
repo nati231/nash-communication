@@ -5,6 +5,7 @@ import {
   authenticate,
   type AuthenticatedRequest,
 } from "../middleware/auth.middleware.js";
+import { uploadLimiter } from "../middleware/rate-limit.js";
 import fileRoutes from "./file.routes.js";
 
 const router = Router();
@@ -12,7 +13,7 @@ const router = Router();
 const DEFAULT_TITLE = "Nash Meeting";
 const MAX_TITLE_LENGTH = 200;
 
-router.use("/:meetingId/files", fileRoutes);
+router.use("/:meetingId/files", uploadLimiter, fileRoutes);
 
 // POST /api/meetings
 // The host is always the logged-in user. A hostId in the request is ignored.

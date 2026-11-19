@@ -10,10 +10,15 @@ import {
   authenticate,
 } from "../middleware/auth.middleware.js";
 
+import {
+  loginLimiter,
+  registerLimiter,
+} from "../middleware/rate-limit.js";
+
 const router = Router();
 
-router.post("/register", register);
-router.post("/login", login);
+router.post("/register", registerLimiter, register);
+router.post("/login", loginLimiter, login);
 router.get("/me", authenticate, me);
 
 export default router;
